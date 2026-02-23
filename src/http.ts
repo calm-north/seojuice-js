@@ -116,10 +116,19 @@ export class HttpClient {
       body = await response.text().catch(() => null);
     }
 
+    const bodyObj =
+      typeof body === "object" && body !== null
+        ? (body as Record<string, unknown>)
+        : null;
+
     const message =
-      typeof body === "object" && body !== null && "detail" in body
-        ? String((body as Record<string, unknown>).detail)
-        : `Request failed with status ${response.status}`;
+      bodyObj?.message
+        ? String(bodyObj.message)
+        : bodyObj?.error
+          ? String(bodyObj.error)
+          : bodyObj?.detail
+            ? String(bodyObj.detail)
+            : `Request failed with status ${response.status}`;
 
     switch (response.status) {
       case 401:

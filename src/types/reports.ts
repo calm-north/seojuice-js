@@ -10,7 +10,7 @@ export interface ReportSummary {
 }
 
 export interface ReportDetail extends ReportSummary {
-  summary: Record<string, unknown> | null;
+  summary: string | null;
   data: Record<string, unknown> | null;
   updated_at: string | null;
   pdf_url: string | null;

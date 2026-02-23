@@ -370,11 +370,47 @@ describe("HttpClient", () => {
       }
     });
 
-    it("falls back to status message when no detail field", async () => {
+    it("extracts error from backend 'message' field (SEOJuice API format)", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({
+          ok: false,
+          status: 400,
+          body: { error: "missing_parameter", message: "URL parameter is required" },
+        }),
+      );
+      const client = createClient(mockFetch);
+
+      try {
+        await client.request("/test/");
+        expect.fail("Expected APIError to be thrown");
+      } catch (err) {
+        expect((err as APIError).message).toBe("URL parameter is required");
+      }
+    });
+
+    it("extracts error from 'error' field when 'message' is absent", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({
+          ok: false,
+          status: 400,
+          body: { error: "invalid_pagination" },
+        }),
+      );
+      const client = createClient(mockFetch);
+
+      try {
+        await client.request("/test/");
+        expect.fail("Expected APIError to be thrown");
+      } catch (err) {
+        expect((err as APIError).message).toBe("invalid_pagination");
+      }
+    });
+
+    it("falls back to status message when no message/error/detail field", async () => {
       const response = createMockResponse({
         ok: false,
         status: 502,
-        body: { error: "bad gateway" },
+        body: { unknown_field: "value" },
       });
       mockFetch.mockResolvedValue(response);
       const client = createClient(mockFetch);

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1 (2026-02-23)
+
+### Bug Fixes
+
+- Fix error message extraction to read backend `message`/`error` fields instead of `detail`
+- Fix `ReportDetail.summary` type from `Record<string, unknown>` to `string` to match backend
+
 ## 1.0.0 (2026-02-23)
 
 Initial commit.
