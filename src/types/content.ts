@@ -35,7 +35,6 @@ export interface ChangeRecord {
   id: number;
   change_type: string;
   status: string;
-  risk_level: string;
   page_url: string | null;
   proposed_value: string | null;
   previous_value: string | null;

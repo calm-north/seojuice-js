@@ -14,12 +14,13 @@ import { ReportsResource } from "../src/resources/reports.js";
 import { AnalysisResource } from "../src/resources/analysis.js";
 import { GBPResource } from "../src/resources/gbp.js";
 import { LinksResource } from "../src/resources/links.js";
+import { ChangesResource } from "../src/resources/changes.js";
 import { SimilarResource } from "../src/resources/similar.js";
 
 const mockFetch = vi.fn();
 
 describe("SEOJuice client", () => {
-  it("creates all 15 resource properties", () => {
+  it("creates all 16 resource properties", () => {
     const client = new SEOJuice({ apiKey: "test-key", fetch: mockFetch });
 
     expect(client.websites).toBeInstanceOf(WebsitesResource);
@@ -32,6 +33,7 @@ describe("SEOJuice client", () => {
     expect(client.aiso).toBeInstanceOf(AISOResource);
     expect(client.keywords).toBeInstanceOf(KeywordsResource);
     expect(client.backlinks).toBeInstanceOf(BacklinksResource);
+    expect(client.changes).toBeInstanceOf(ChangesResource);
     expect(client.accessibility).toBeInstanceOf(AccessibilityResource);
     expect(client.reports).toBeInstanceOf(ReportsResource);
     expect(client.analysis).toBeInstanceOf(AnalysisResource);

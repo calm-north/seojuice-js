@@ -21,7 +21,6 @@ export interface DecayAlertParams extends PaginationParams {
 export interface ChangeParams extends PaginationParams {
   status?: string;
   change_type?: string;
-  risk_level?: string;
 }
 
 export class ContentResource {

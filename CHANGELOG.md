@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.1.0 (2026-03-10)
+
+### Features
+
+- New `changes` resource with full lifecycle management: `list()`, `get()`, `approve()`, `reject()`, `revert()`, `pull()`, `verify()`, `bulk()`, `stats()`, `settings()`, `updateSettings()`
+- Headless CMS pull/verify workflow: mark changes as pulled by your integration, then verify after deploy
+- Bulk actions support (approve, reject, revert, pull, verify) with up to 500 IDs per request
+- Automation settings management (modes per change type, daily budgets, path exclusions)
+- Webhook payload types (`ChangeWebhookPayload`) for handling change lifecycle events
+- New enums: `ChangeStatus`, `ChangeType`, `AutomationMode`
+- 11 integration examples: Next.js SSG, Contentful, Sanity, React dashboard, Remix, Astro, Gatsby, WordPress headless, webhook receiver, headless CMS sync, change management
+- URL-based filtering on changes list (`url` parameter)
+
+### Breaking Changes
+
+- Removed `RiskLevel` enum and `risk_level` field from `ChangeRecord` — risk level is no longer part of the changes API
+- Removed `by_risk` from `ChangeStats`
+- Removed `risk_level` from `ChangeListParams` filter options
+- `ChangeRecord` type moved from `types/content` to `types/changes` (re-exported from package root, so imports from `"seojuice"` still work)
+
 ## 1.0.1 (2026-02-23)
 
 ### Bug Fixes

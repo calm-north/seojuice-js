@@ -13,6 +13,8 @@ npm install seojuice
 - [Quick Start](#quick-start)
 - [Configuration](#configuration)
 - [API Reference](#api-reference)
+  - [Changes](#changes)
+  - [Webhooks](#webhooks)
 - [Pagination](#pagination)
 - [Error Handling](#error-handling)
 - [SEO Injection (Server-Side)](#seo-injection-server-side)
@@ -84,7 +86,7 @@ const client = new SEOJuice({
 
 ## API Reference
 
-All methods return typed responses. The client provides 15 resource namespaces:
+All methods return typed responses. The client provides 16 resource namespaces:
 
 | Resource | Methods | Description |
 |---|---|---|
@@ -94,6 +96,7 @@ All methods return typed responses. The client provides 15 resource namespaces:
 | `intelligence` | `getSummary()` `getTopology()` `getPageSpeed()` | SEO intelligence and performance |
 | `clusters` | `list()` `get()` | Topic clusters |
 | `content` | `listGaps()` `listDecayAlerts()` `listChanges()` | Content analysis |
+| `changes` | `list()` `get()` `approve()` `reject()` `revert()` `pull()` `verify()` `bulk()` `stats()` `settings()` `updateSettings()` | SEO change lifecycle management |
 | `competitors` | `list()` | Competitor tracking |
 | `aiso` | `get()` | AI Search Optimization scores |
 | `keywords` | `list()` | Keyword tracking |
@@ -155,7 +158,7 @@ const decaying = await client.content.listDecayAlerts("example.com", {
 });
 
 const changes = await client.content.listChanges("example.com", {
-  risk_level: "high",
+  status: "pending",
 });
 ```
 
@@ -190,6 +193,77 @@ const reviews = await client.gbp.listReviews("example.com", {
 });
 await client.gbp.replyToReview("example.com", reviewId, "Thank you!");
 ```
+
+### Changes
+
+Manage SEO changes through their full lifecycle: review, approve, deploy, and verify.
+
+```typescript
+// List pending changes
+const pending = await client.changes.list("example.com", { status: "pending" });
+
+// Filter by page URL
+const pageChanges = await client.changes.list("example.com", {
+  url: "https://example.com/blog/my-post",
+});
+
+// Get a single change
+const change = await client.changes.get("example.com", changeId);
+
+// Approve / reject / revert
+await client.changes.approve("example.com", changeId);
+await client.changes.reject("example.com", changeId, { reason: "Not relevant" });
+await client.changes.revert("example.com", changeId, { reason: "Caused issues" });
+
+// Headless CMS pull/verify workflow
+await client.changes.pull("example.com", changeId, { integration: "contentful" });
+await client.changes.verify("example.com", changeId, { integration: "contentful" });
+
+// Bulk actions (max 500 IDs per request)
+const result = await client.changes.bulk("example.com", {
+  action: "approve",
+  ids: [1, 2, 3],
+});
+console.log(result.total_succeeded, result.total_failed);
+
+// Stats overview (single aggregated query)
+const stats = await client.changes.stats("example.com");
+console.log(stats.by_status, stats.by_type);
+
+// Automation settings
+const settings = await client.changes.settings("example.com");
+await client.changes.updateSettings("example.com", {
+  internal_links_mode: "auto_deploy",
+  max_changes_per_day: 50,
+});
+```
+
+### Webhooks
+
+SEOJuice sends webhook events when changes transition states. Verify signatures with HMAC-SHA256:
+
+```typescript
+import crypto from "node:crypto";
+
+function verifySignature(body: string, signature: string, secret: string): boolean {
+  const expected = crypto.createHmac("sha256", secret).update(body).digest("hex");
+  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+}
+
+// In your webhook handler:
+const sig = req.headers["x-seojuice-signature"];
+if (!verifySignature(rawBody, sig, process.env.SEOJUICE_WEBHOOK_SECRET!)) {
+  return res.status(401).json({ error: "Invalid signature" });
+}
+
+const payload = JSON.parse(rawBody);
+// payload.event: "change.created" | "change.approved" | "change.applied"
+//              | "change.pulled" | "change.verified" | "change.reverted" | "change.rejected"
+// payload.change: full ChangeRecord object
+// payload.website: { domain: string }
+```
+
+See `examples/changes-webhook-receiver.ts` for a complete Express.js handler.
 
 ## Pagination
 
@@ -1093,11 +1167,20 @@ import type {
   IntelligenceSummary,
   ContentGap,
   SimilarPage,
+  ChangeRecord,
+  ChangeStats,
+  ChangeSettings,
+  BulkActionParams,
+  BulkActionResult,
+  ChangeWebhookPayload,
   SuggestionResponse,
   SuggestionLink,
   PaginatedResult,
   PaginationParams,
 } from "seojuice";
+
+// Enums for type-safe filtering
+import { ChangeStatus, ChangeType, AutomationMode } from "seojuice";
 ```
 
 ## Security

@@ -47,8 +47,26 @@ export type { ClusterSummary, ClusterDetail } from "./types/clusters.js";
 export type {
   ContentGap,
   ContentDecayAlert,
-  ChangeRecord,
 } from "./types/content.js";
+
+// Changes types
+export type {
+  ChangeRecord,
+  ChangeListParams,
+  ChangeStats,
+  ChangeSettings,
+  BulkActionParams,
+  BulkActionResult,
+  ChangeWebhookPayload,
+} from "./types/changes.js";
+
+export {
+  ChangeStatus,
+  ChangeType,
+  AutomationMode,
+} from "./types/changes.js";
+
+export { ChangesResource } from "./resources/changes.js";
 
 // Competitor types
 export type { Competitor } from "./types/competitors.js";

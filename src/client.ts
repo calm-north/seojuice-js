@@ -3,6 +3,7 @@ import { AccessibilityResource } from "./resources/accessibility.js";
 import { AISOResource } from "./resources/aiso.js";
 import { AnalysisResource } from "./resources/analysis.js";
 import { BacklinksResource } from "./resources/backlinks.js";
+import { ChangesResource } from "./resources/changes.js";
 import { ClustersResource } from "./resources/clusters.js";
 import { CompetitorsResource } from "./resources/competitors.js";
 import { ContentResource } from "./resources/content.js";
@@ -36,6 +37,7 @@ export class SEOJuice {
   readonly aiso: AISOResource;
   readonly keywords: KeywordsResource;
   readonly backlinks: BacklinksResource;
+  readonly changes: ChangesResource;
   readonly accessibility: AccessibilityResource;
   readonly reports: ReportsResource;
   readonly analysis: AnalysisResource;
@@ -60,6 +62,7 @@ export class SEOJuice {
     this.aiso = new AISOResource(http);
     this.keywords = new KeywordsResource(http);
     this.backlinks = new BacklinksResource(http);
+    this.changes = new ChangesResource(http);
     this.accessibility = new AccessibilityResource(http);
     this.reports = new ReportsResource(http);
     this.analysis = new AnalysisResource(http);
