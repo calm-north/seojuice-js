@@ -4,6 +4,7 @@ export default defineConfig({
   entry: {
     index: "src/index.ts",
     injection: "src/injection.ts",
+    next: "src/next.ts",
   },
   format: ["esm", "cjs"],
   dts: true,

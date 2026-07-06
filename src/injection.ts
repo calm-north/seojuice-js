@@ -134,3 +134,32 @@ export function injectSEO(options: InjectSEOOptions): string {
 
   return out;
 }
+
+/**
+ * Framework-agnostic core for server-side adapters: fetches suggestions for
+ * `url` and runs `injectSEO`. Fails open — any fetch/parse error returns the
+ * original `html` unchanged. Used by `seojuice/next`'s `createSeoMiddleware`,
+ * and directly usable from any custom server or edge runtime.
+ */
+export async function injectResponse(opts: {
+  html: string;
+  url: string;
+  fetch?: typeof globalThis.fetch;
+  apiBase?: string;
+  timeout?: number;
+}): Promise<string> {
+  try {
+    // apiBase is the API origin (e.g. "https://smart.seojuice.io"), matching
+    // how adapters use it for the /views beacon — derive the /suggestions
+    // endpoint from it rather than passing the bare origin as the full URL.
+    const baseURL = opts.apiBase ? `${opts.apiBase.replace(/\/$/, "")}/suggestions` : undefined;
+    const suggestions = await fetchSuggestions(opts.url, {
+      fetch: opts.fetch,
+      baseURL,
+      timeout: opts.timeout,
+    });
+    return injectSEO({ html: opts.html, suggestions });
+  } catch {
+    return opts.html; // fail open
+  }
+}

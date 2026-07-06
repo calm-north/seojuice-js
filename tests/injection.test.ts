@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fetchSuggestions, injectSEO } from "../src/injection.js";
+import { fetchSuggestions, injectSEO, injectResponse } from "../src/injection.js";
 import type { SuggestionResponse } from "../src/types/injection.js";
 
 function createSuggestionResponse(
@@ -328,5 +328,35 @@ describe("injectSEO", () => {
     const once = injectSEO({ html: baseHTML, suggestions });
     const twice = injectSEO({ html: once, suggestions });
     expect(twice).toBe(once);
+  });
+});
+
+describe("injectResponse", () => {
+  it("fetches then injects, fails open on fetch error", async () => {
+    const ok = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ errors: [], suggestions: [{ keyword: "SWP", url: "/swp", id: 1 }] }),
+    });
+    const out = await injectResponse({ html: "<body><p>SWP</p></body>", url: "https://x.com/p", fetch: ok });
+    expect(out).toContain('<a href="/swp"');
+
+    const boom = vi.fn().mockRejectedValue(new Error("net"));
+    const same = await injectResponse({ html: "<body><p>SWP</p></body>", url: "https://x.com/p", fetch: boom });
+    expect(same).toBe("<body><p>SWP</p></body>"); // fail open
+  });
+
+  it("derives the /suggestions endpoint from apiBase", async () => {
+    const fetchFn = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ errors: [], suggestions: [] }),
+    });
+    await injectResponse({
+      html: "<body></body>",
+      url: "https://x.com/p",
+      apiBase: "https://custom.seojuice.io",
+      fetch: fetchFn,
+    });
+    const [calledUrl] = fetchFn.mock.calls[0];
+    expect(String(calledUrl)).toContain("https://custom.seojuice.io/suggestions?");
   });
 });
