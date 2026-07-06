@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { NextResponse } from "next/server";
 import { sendViewBeacon, createSeoMiddleware } from "../src/next.js";
 
 describe("sendViewBeacon", () => {
@@ -67,6 +68,55 @@ describe("createSeoMiddleware", () => {
       const result = await middleware(request);
       const body = await result.text();
       expect(body).toContain('<a href="/swp"');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("passes through the re-entrant self-fetch without a second origin fetch", async () => {
+    const originalFetch = globalThis.fetch;
+    const fetchSpy = vi.fn();
+    globalThis.fetch = fetchSpy as unknown as typeof globalThis.fetch;
+    try {
+      const middleware = createSeoMiddleware();
+      const request = {
+        nextUrl: { toString: () => "https://x.com/funds" },
+        headers: new Headers({ "x-seojuice-ssr": "1" }),
+      } as any;
+      const result = await middleware(request);
+      // Re-entrant hop must short-circuit: no origin fetch, no injection.
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(result).toBeInstanceOf(NextResponse);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("stamps the guard header on the origin self-fetch so re-entry is detectable", async () => {
+    const htmlResponse = new Response("<html><body><p>hi</p></body></html>", {
+      headers: { "content-type": "text/html" },
+    });
+    const originalFetch = globalThis.fetch;
+    const fetchSpy = vi.fn().mockImplementation((input: unknown) => {
+      if (typeof input === "string" && input.includes("/suggestions")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ errors: [], suggestions: [] }) });
+      }
+      return Promise.resolve(htmlResponse);
+    });
+    globalThis.fetch = fetchSpy as unknown as typeof globalThis.fetch;
+    try {
+      const middleware = createSeoMiddleware();
+      const request = {
+        nextUrl: { toString: () => "https://x.com/funds" },
+        headers: new Headers(),
+      } as any;
+      await middleware(request);
+      const originCall = fetchSpy.mock.calls.find(
+        ([input]) => !(typeof input === "string" && input.includes("/suggestions")),
+      );
+      expect(originCall).toBeTruthy();
+      const init = originCall?.[1] as { headers?: Headers } | undefined;
+      expect(init?.headers?.get("x-seojuice-ssr")).toBe("1");
     } finally {
       globalThis.fetch = originalFetch;
     }

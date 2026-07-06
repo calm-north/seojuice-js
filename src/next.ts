@@ -6,6 +6,15 @@ import { injectResponse } from "./injection.js";
 const DEFAULT_API = "https://smart.seojuice.io";
 
 /**
+ * Sentinel header stamped on the origin self-fetch so a re-entrant middleware
+ * invocation (Next.js re-runs middleware on `fetch(request)` subrequests) can
+ * detect its own fetch and pass through instead of fetching-and-injecting
+ * again. Without it, one request fans out into MAX_RECURSION_DEPTH nested
+ * middleware executions + origin fetches before Next's own depth cap breaks it.
+ */
+const SSR_GUARD_HEADER = "x-seojuice-ssr";
+
+/**
  * Fire-and-forget crawler-analytics beacon (GENERAL plan contract C3).
  * Reports `url`/`user_agent`/`referrer` server-side so JS-less AI crawlers
  * (GPTBot, ClaudeBot, …) that never run the client snippet are still
@@ -55,8 +64,16 @@ export function createSeoMiddleware(options: CreateSeoMiddlewareOptions = {}) {
   const apiBase = options.apiBase ?? DEFAULT_API;
 
   return async function middleware(request: NextRequest): Promise<NextResponse> {
+    if (request.headers.get(SSR_GUARD_HEADER)) {
+      // Re-entrant origin self-fetch: let Next render the page untouched
+      // rather than fetch-and-inject a second time.
+      return NextResponse.next();
+    }
+
     const url = request.nextUrl.toString();
-    const origin = await fetch(request);
+    const fwd = new Headers(request.headers);
+    fwd.set(SSR_GUARD_HEADER, "1");
+    const origin = await fetch(request, { headers: fwd });
     const ct = origin.headers.get("content-type") || "";
 
     if (!ct.includes("text/html")) return origin as unknown as NextResponse;
