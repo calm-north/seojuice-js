@@ -3,9 +3,16 @@
  *
  * Intercepts HTML responses and injects SEO meta tags, Open Graph tags,
  * structured data, and internal link data before the page reaches the browser.
+ * injectSEO now applies full server-side parity (links, alt, diffs, h1, broken-links).
  *
  * Best for: static exports, ISR pages, or any route where you want
  * transparent SEO enhancement without modifying page components.
+ *
+ * Note: this hand-rolled example is illustrative of the caching/fetch shape;
+ * for a batteries-included, production-ready middleware (including the
+ * origin-fetch pattern needed to actually read the rendered HTML — see
+ * `seojuice/next`'s doc comment for why `NextResponse.next()` alone cannot),
+ * use `createSeoMiddleware` from `seojuice/next` instead of hand-rolling this.
  */
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
@@ -50,9 +57,15 @@ export async function middleware(request: NextRequest) {
   const html = await response.text();
   const enhanced = injectSEO({ html, suggestions });
 
+  // Strip stale length/encoding headers — the body changed size, and the
+  // upstream Content-Encoding no longer matches the (now-uncompressed) text.
+  const headers = new Headers(response.headers);
+  headers.delete("content-length");
+  headers.delete("content-encoding");
+
   return new NextResponse(enhanced, {
     status: response.status,
-    headers: response.headers,
+    headers,
   });
 }
 

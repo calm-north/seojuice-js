@@ -3,6 +3,10 @@
  *
  * Uses Next.js `unstable_cache` (or `next/cache` in newer versions) for
  * automatic ISR-style revalidation of SEO suggestions.
+ *
+ * generateMetadata handles <head>; for full body injection (links/alt/diffs)
+ * use the middleware example (`examples/nextjs-middleware.ts`, or
+ * `createSeoMiddleware` from `seojuice/next`).
  */
 import { fetchSuggestions } from "seojuice/injection";
 import type { SuggestionResponse } from "seojuice/injection";
