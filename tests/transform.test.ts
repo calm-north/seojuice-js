@@ -8,6 +8,7 @@ import {
   replaceImages,
   injectInternalLinks,
   applyContentDiffs,
+  applyBrokenLinkFixes,
 } from "../src/transform.js";
 
 export const S = (o: Partial<any> = {}): any => ({
@@ -133,6 +134,34 @@ describe("applyContentDiffs", () => {
         [{ id: 9, original_text: "<p>old copy</p>", replacement_html: '<p data-seojuice-cs="9">new copy</p>' }],
         M(),
       ),
+    ).toBe(html);
+  });
+});
+
+describe("applyBrokenLinkFixes", () => {
+  it("replace via edge-path new_url", () => {
+    const out = applyBrokenLinkFixes('<a href="/dead">x</a>', [
+      { action: "replace", tag: "a", attr: "href", broken_url: "/dead", new_url: "/live" },
+    ]);
+    expect(out).toBe('<a href="/live">x</a>');
+  });
+  it("replace via legacy-path replacement_url when new_url empty", () => {
+    const out = applyBrokenLinkFixes('<a href="/dead">x</a>', [
+      { action: "replace", tag: "a", attr: "href", broken_url: "/dead", new_url: "", replacement_url: "/live" },
+    ]);
+    expect(out).toBe('<a href="/live">x</a>');
+  });
+  it("unlink removes the whole anchor", () => {
+    expect(
+      applyBrokenLinkFixes('before<a href="/dead">x</a>after', [
+        { action: "unlink", tag: "a", attr: "href", broken_url: "/dead" },
+      ]),
+    ).toBe("beforeafter");
+  });
+  it("does not touch data-href", () => {
+    const html = '<a data-href="/dead">x</a>';
+    expect(
+      applyBrokenLinkFixes(html, [{ action: "replace", tag: "a", attr: "href", broken_url: "/dead", new_url: "/live" }]),
     ).toBe(html);
   });
 });

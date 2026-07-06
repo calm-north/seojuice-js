@@ -15,6 +15,16 @@ export interface SuggestionDiff {
   replacement_html: string;
 }
 
+export interface BrokenLinkFix {
+  action: "replace" | "unlink";
+  tag: "a" | "img";
+  attr: "href" | "src";
+  broken_url?: string;
+  old_url?: string;
+  new_url?: string;
+  replacement_url?: string;
+}
+
 export interface AccessibilityConfig {
   enabled: boolean;
   language: string;
@@ -40,6 +50,8 @@ export interface SuggestionResponse {
   title: string;
   h1: string;
   diffs: SuggestionDiff[];
+  broken_link_fixes: BrokenLinkFix[];
+  overwrite_existing_alt_text: boolean;
   track_page_views: boolean;
   track_link_clicks: boolean;
   custom_link_class: string;

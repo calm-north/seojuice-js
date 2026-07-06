@@ -1,4 +1,4 @@
-import type { SuggestionResponse, SuggestionDiff } from "./types/injection.js";
+import type { SuggestionResponse, SuggestionDiff, BrokenLinkFix } from "./types/injection.js";
 
 export interface Manifest {
   cs: number[];
@@ -281,5 +281,55 @@ export function applyContentDiffs(html: string, diffs: SuggestionDiff[], manifes
       /* one bad diff never aborts the page */
     }
   }
+  return html;
+}
+
+// Apply broken-link / broken-image fixes delivered in the API payload.
+//
+// action='replace': rewrite the matching attr value to the fix URL.
+// action='unlink':  remove the matched element entirely.
+//
+// Matching is anchored to the exact tag + attr + old URL value so there is
+// zero risk of collateral string replacement anywhere else in the document.
+// The `\s`-anchor before the attribute name ensures `data-href`/`data-src`
+// never match when the target attribute is `href`/`src`.
+export function applyBrokenLinkFixes(html: string, fixes: BrokenLinkFix[]): string {
+  if (!Array.isArray(fixes) || fixes.length === 0) return html;
+
+  for (const fix of fixes) {
+    try {
+      const tag = (fix.tag || "").toLowerCase();
+      const attr = (fix.attr || "").toLowerCase();
+      const oldUrl = fix.broken_url || fix.old_url || "";
+      // Two-shape URL read: edge payloads use new_url, legacy payloads use replacement_url.
+      const newUrl = fix.new_url || fix.replacement_url || "";
+      const action = fix.action === "unlink" ? "unlink" : "replace";
+
+      if (!tag || !attr || !oldUrl) continue;
+      if (action === "replace" && !newUrl) continue;
+      if (tag !== "a" && tag !== "img") continue;
+      if (attr !== "href" && attr !== "src") continue;
+
+      const escapedOldUrl = escapeRegExp(oldUrl);
+
+      if (action === "replace") {
+        const re = new RegExp(`(<${tag}\\b[^>]*\\s${attr}=)(["'])(${escapedOldUrl})\\2([^>]*>)`, "gi");
+        html = html.replace(
+          re,
+          (_m: string, before: string, quote: string, _old: string, after: string) =>
+            `${before}${quote}${escapeHtml(newUrl)}${quote}${after}`,
+        );
+      } else if (tag === "img") {
+        const re = new RegExp(`<img\\b[^>]*\\s${attr}=["']${escapedOldUrl}["'][^>]*>`, "gi");
+        html = html.replace(re, "");
+      } else {
+        const re = new RegExp(`<a\\b[^>]*\\s${attr}=["']${escapedOldUrl}["'][^>]*>[\\s\\S]*?<\\/a>`, "gi");
+        html = html.replace(re, "");
+      }
+    } catch {
+      /* one bad fix never aborts the page */
+    }
+  }
+
   return html;
 }
