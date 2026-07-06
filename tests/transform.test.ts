@@ -9,6 +9,7 @@ import {
   injectInternalLinks,
   applyContentDiffs,
   applyBrokenLinkFixes,
+  validateApiResponse,
 } from "../src/transform.js";
 
 export const S = (o: Partial<any> = {}): any => ({
@@ -163,5 +164,31 @@ describe("applyBrokenLinkFixes", () => {
     expect(
       applyBrokenLinkFixes(html, [{ action: "replace", tag: "a", attr: "href", broken_url: "/dead", new_url: "/live" }]),
     ).toBe(html);
+  });
+});
+
+describe("validateApiResponse", () => {
+  it("rejects payloads with no actionable field", () => {
+    expect(
+      validateApiResponse({
+        errors: [],
+        suggestions: [],
+        images: [],
+        diffs: [],
+        title: "",
+        meta_description: "",
+        og_title: "",
+        structured_data: "",
+      }),
+    ).toBe(false);
+  });
+  it("rejects payloads carrying errors", () => {
+    expect(validateApiResponse({ errors: ["Page doesn't exist"], title: "x" })).toBe(false);
+  });
+  it("accepts a payload with at least one actionable field", () => {
+    expect(validateApiResponse({ errors: [], suggestions: [{ keyword: "a", url: "/a", id: 1 }] })).toBe(true);
+  });
+  it("rejects non-array suggestions/images/diffs", () => {
+    expect(validateApiResponse({ suggestions: "nope" })).toBe(false);
   });
 });

@@ -333,3 +333,23 @@ export function applyBrokenLinkFixes(html: string, fixes: BrokenLinkFix[]): stri
 
   return html;
 }
+
+// C1 — gates the whole pipeline; a false result means "inject nothing, return original HTML".
+export function validateApiResponse(s: unknown): boolean {
+  const obj = s as Record<string, unknown>;
+  if (!s || typeof s !== "object" || Array.isArray(s)) return false;
+  if (Array.isArray(obj.errors) && (obj.errors as unknown[]).length > 0) return false;
+  const hasContent =
+    !!obj.title ||
+    !!obj.meta_description ||
+    (Array.isArray(obj.suggestions) && obj.suggestions.length) ||
+    (Array.isArray(obj.images) && obj.images.length) ||
+    !!obj.structured_data ||
+    !!obj.og_title ||
+    (Array.isArray(obj.diffs) && obj.diffs.length);
+  if (!hasContent) return false;
+  if ("suggestions" in obj && !Array.isArray(obj.suggestions)) return false;
+  if ("images" in obj && !Array.isArray(obj.images)) return false;
+  if ("diffs" in obj && !Array.isArray(obj.diffs)) return false;
+  return true;
+}
