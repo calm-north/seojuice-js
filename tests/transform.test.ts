@@ -192,3 +192,15 @@ describe("validateApiResponse", () => {
     expect(validateApiResponse({ suggestions: "nope" })).toBe(false);
   });
 });
+
+describe("injectInternalLinks content-area targeting (C2)", () => {
+  it("content-only mode links inside <p> but not in <nav>/<footer> chrome", () => {
+    const s = S({ suggestions: [{ keyword: "SWP", url: "/swp", id: 1 }], insert_into_content_only: true });
+    const out = injectInternalLinks("<nav>SWP</nav><p>SWP here</p>", s, M());
+    expect(out).toBe('<nav>SWP</nav><p><a href="/swp" data-seojuice-cs="1">SWP</a> here</p>');
+  });
+  it("broad mode (flag false) links anywhere non-skip", () => {
+    const s = S({ suggestions: [{ keyword: "SWP", url: "/swp", id: 1 }], insert_into_content_only: false });
+    expect(injectInternalLinks("<nav>SWP</nav>", s, M())).toContain('<a href="/swp"');
+  });
+});

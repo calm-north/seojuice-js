@@ -49,6 +49,11 @@ export function tokenizeHTML(html: string): Segment[] {
 export const SKIP_TAG_RE = /^<(a|script|style|title|h[1-6])[\s/>]/i;
 export const CLOSE_TAG_RE = /^<\/(a|script|style|title|h[1-6])>/i;
 
+// C2 — content-area targeting: when insert_into_content_only is true, only these
+// block-content tags' direct text may receive injected links (never headings/nav/footer chrome).
+export const BLOCK_CONTENT_RE = /^<(p|li|span|div|td|blockquote|dd|figcaption)[\s>]/i;
+export const BLOCK_CONTENT_CLOSE_RE = /^<\/(p|li|span|div|td|blockquote|dd|figcaption)>/i;
+
 export function replaceMetaTags(html: string, s: SuggestionResponse, manifest: Manifest): string {
   const {
     title,
@@ -212,18 +217,25 @@ export function injectInternalLinks(html: string, s: SuggestionResponse, manifes
 
   if (links.length === 0) return html;
 
+  const contentOnly = s.insert_into_content_only === true;
   const segments = tokenizeHTML(html);
   let skipDepth = 0;
+  let blockDepth = 0;
   const result: string[] = [];
 
   for (const seg of segments) {
     if (seg.type === "tag") {
       if (SKIP_TAG_RE.test(seg.value)) skipDepth++;
       else if (CLOSE_TAG_RE.test(seg.value) && skipDepth > 0) skipDepth--;
+      if (contentOnly) {
+        if (BLOCK_CONTENT_RE.test(seg.value)) blockDepth++;
+        else if (BLOCK_CONTENT_CLOSE_RE.test(seg.value) && blockDepth > 0) blockDepth--;
+      }
       result.push(seg.value);
     } else {
       let text = seg.value;
-      if (skipDepth === 0) {
+      const canInject = skipDepth === 0 && (!contentOnly || blockDepth > 0);
+      if (canInject) {
         for (const link of links) {
           if (replacedKeywords.has(link.kl)) continue;
           text = text.replace(link.pattern, (match: string) => {
