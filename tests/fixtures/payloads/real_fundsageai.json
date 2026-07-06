@@ -1,0 +1,54 @@
+{
+  "suggestions": [
+    {
+      "url": "https://www.fundsageai.com/blog/systematic-withdrawal-plan-swp-retirement-india",
+      "keyword": "monthly income from mutual funds",
+      "id": 253679
+    },
+    {
+      "url": "https://www.fundsageai.com/blog/systematic-withdrawal-plan-swp-retirement-india",
+      "keyword": "Systematic Withdrawal Plan",
+      "id": 253664
+    },
+    {
+      "url": "https://www.fundsageai.com/blog/systematic-withdrawal-plan-swp-retirement-india",
+      "keyword": "annual withdrawal rate",
+      "id": 253680
+    },
+    {
+      "url": "https://www.fundsageai.com/calculators",
+      "keyword": "SWP calculator",
+      "id": 253678
+    }
+  ],
+  "images": [],
+  "custom_link_class": "",
+  "accessibility": [],
+  "broken_link_fixes": [],
+  "diffs": [],
+  "errors": [],
+  "title": "SWP Calculator for Mutual Funds: Sustainable Withdrawals",
+  "h1": "",
+  "og_title": "SWP Calculator for Mutual Funds India | FundSageAI",
+  "og_description": "Plan a sustainable monthly income from mutual funds with the SWP calculator. See how long your corpus lasts, inflation-adjusted withdrawals, and end balance. Get your results today",
+  "og_image": "https://seojuiced.b-cdn.net/seojuice/media/9557efd8-b7f6-4c92-a738-19c82b374318.png",
+  "structured_data": "",
+  "meta_description": "",
+  "meta_keywords": "",
+  "isAsian": false,
+  "insert_into_content_only": false,
+  "base": "https://www.fundsageai.com/calculators/swp-calculator",
+  "is_active": true,
+  "track_page_views": true,
+  "track_link_clicks": true,
+  "overwrite_existing_alt_text": false,
+  "accessibility_config": {
+    "enabled": true,
+    "language": "en"
+  },
+  "_meta": {
+    "source": "https://smart.seojuice.io/suggestions?url=https://www.fundsageai.com/calculators/swp-calculator",
+    "captured_at": "2026-07-06",
+    "notes": "real captured payload; images/diffs/broken_link_fixes/structured_data were empty at capture time (site has no live image-alt/content-diff/broken-link/schema changesets currently)"
+  }
+}
