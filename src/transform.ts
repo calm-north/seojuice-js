@@ -123,16 +123,16 @@ export function replaceMetaTags(
     html = html.replace(/<\/head>/i, `<meta property="og:image" content="${escapeHtml(og_image)}">\n</head>`);
   }
 
-  // M1 — intentional Worker parity: structured_data must be DOUBLE JSON
-  // encoded (a JSON string containing an inner JSON string). If a caller
-  // sends a plain single-encoded JSON string, the second JSON.parse below
-  // receives a non-string (an object) and throws, and the catch below
-  // silently skips schema injection for that response. This mirrors the
-  // SEOJuice edge Worker's own (documented) behavior — do not change it.
+  // M1 — defensive single-or-double decode: the real /suggestions payload
+  // (build_page_suggestions_payload) serializes structured_data as a SINGLE
+  // json.dumps(dict) — a JSON string of the object. A legacy caller may
+  // still send it double-encoded (a JSON string containing an inner JSON
+  // string). Parse once; if the result is still a string, parse again.
+  // Either shape must produce byte-identical injected JSON-LD.
   if (injectStructuredData && structured_data && structured_data !== "null") {
     try {
-      const jsonString = JSON.parse(structured_data);
-      const obj = JSON.parse(jsonString);
+      let obj: unknown = JSON.parse(structured_data);
+      if (typeof obj === "string") obj = JSON.parse(obj);
       if (!html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>/i)) {
         html = html.replace(
           /<\/head>/i,
@@ -225,7 +225,7 @@ export function injectInternalLinks(html: string, s: SuggestionResponse, manifes
     const escapedKeyword = escapeRegExp(link.keyword);
     const pattern = isAsian
       ? new RegExp(
-          `(?<=[\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}]|^)(${escapedKeyword})(?=[\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}\\.!\\?\\)\\]\\/]|$)`,
+          `(?<=[\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}]|^)(${escapedKeyword})(?=[\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}\\.!\\?\\)\\]\\/。、！？）」』]|$)`,
           "u",
         )
       : new RegExp(
@@ -281,6 +281,21 @@ export function injectInternalLinks(html: string, s: SuggestionResponse, manifes
 // Matches <tagname> or <tagname ...attrs...> (tagname must be word chars only).
 export const SINGLE_ROOT_RE = /^<(\w+)(\s[^>]*)?>/;
 
+// C — blanks the *contents* of every <script>/<style> element (tags kept,
+// body replaced with equal-length \x00 runs) so occurrence/ambiguity checks
+// below only ever "see" the visible document. Same length as the input, so
+// an index found in the masked copy is valid against the real html too.
+// Frameworks like Next.js App Router serialize the pre-transform page text
+// into a `__next_f` hydration <script>; without masking, that duplicate
+// trips the ambiguity guard and the diff never applies to the visible body.
+const SCRIPT_STYLE_RE = /(<(script|style)\b[^>]*>)([\s\S]*?)(<\/\2>)/gi;
+
+export function maskScriptStyle(html: string): string {
+  return html.replace(SCRIPT_STYLE_RE, (_m, open: string, _tag: string, body: string, close: string) => {
+    return open + "\x00".repeat(body.length) + close;
+  });
+}
+
 export function applyContentDiffs(html: string, diffs: SuggestionDiff[], manifest: Manifest): string {
   if (!Array.isArray(diffs)) return html;
   for (const d of diffs) {
@@ -288,10 +303,11 @@ export function applyContentDiffs(html: string, diffs: SuggestionDiff[], manifes
       const original = d.original_text || "";
       let replacement = d.replacement_html || "";
       if (!original || !replacement) continue;
-      if (html.includes(replacement) && !html.includes(original)) continue; // already applied
-      const idx = html.indexOf(original);
-      if (idx === -1) continue; // DOM drift → skip
-      if (html.indexOf(original, idx + 1) !== -1) continue; // ambiguous → skip
+      const masked = maskScriptStyle(html);
+      if (masked.includes(replacement) && !masked.includes(original)) continue; // already applied
+      const idx = masked.indexOf(original);
+      if (idx === -1) continue; // not in the visible region → skip (DOM drift, or only in script/style)
+      if (masked.indexOf(original, idx + original.length) !== -1) continue; // ambiguous in the visible region → skip
 
       if (d.id != null) {
         const rootMatch = SINGLE_ROOT_RE.exec(replacement);

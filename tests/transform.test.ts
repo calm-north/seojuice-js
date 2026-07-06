@@ -65,11 +65,18 @@ describe("replaceMetaTags / replaceH1", () => {
       '<script type="application/ld+json" data-seojuice="schema">{"@context":"https://schema.org","@type":"Article"}</script>',
     );
   });
-  it("ignores single-encoded structured_data by design (M1 — Worker parity requires double-encoding)", () => {
+  it("single-decodes structured_data into valid JSON-LD (M1 — real /suggestions payload shape)", () => {
     const inner = { "@context": "https://schema.org", "@type": "Article" };
-    // NOT double-encoded — a plain JSON string, which is what a naive
-    // caller might send. This must be silently ignored, not "fixed".
+    // Single-encoded — the real shape build_page_suggestions_payload sends
+    // (json.dumps(dict) once). Must inject, not silently skip.
     const payload = S({ structured_data: JSON.stringify(inner) });
+    const out = replaceMetaTags("<head></head>", payload, M());
+    expect(out).toContain(
+      '<script type="application/ld+json" data-seojuice="schema">{"@context":"https://schema.org","@type":"Article"}</script>',
+    );
+  });
+  it("skips structured_data that is malformed even after a second parse attempt", () => {
+    const payload = S({ structured_data: "not valid json {{{" });
     const out = replaceMetaTags("<head></head>", payload, M());
     expect(out).not.toContain("application/ld+json");
   });
@@ -118,6 +125,11 @@ describe("injectInternalLinks", () => {
       '<a href="/toushin" data-seojuice-cs="777">投資信託</a>',
     );
   });
+  it("links a Japanese keyword immediately followed by full-width 。 (bug B — sentence-final CJK)", () => {
+    const s = S({ suggestions: [{ keyword: "投資信託", url: "/toushin", id: 777 }], isAsian: true });
+    const out = injectInternalLinks("<p>私は投資信託。詳しく学びます。</p>", s, M());
+    expect(out).toBe('<p>私は<a href="/toushin" data-seojuice-cs="777">投資信託</a>。詳しく学びます。</p>');
+  });
 });
 
 describe("applyContentDiffs", () => {
@@ -132,6 +144,24 @@ describe("applyContentDiffs", () => {
   it("skips an ambiguous diff (original appears twice)", () => {
     const html = "<p>dup</p><p>dup</p>";
     expect(applyContentDiffs(html, [{ id: 1, original_text: "dup", replacement_html: "X" }], M())).toBe(html);
+  });
+  it("applies to the visible body when the original text also appears inside a <script> (bug C)", () => {
+    const html = '<body><p>Old paragraph text.</p><script>window.__d="Old paragraph text.";</script></body>';
+    const out = applyContentDiffs(
+      html,
+      [{ id: 21, original_text: "Old paragraph text.", replacement_html: "<strong>New paragraph text.</strong>" }],
+      M(),
+    );
+    expect(out).toBe(
+      '<body><p><strong data-seojuice-cs="21">New paragraph text.</strong></p><script>window.__d="Old paragraph text.";</script></body>',
+    );
+  });
+  it("still skips when the original text is genuinely ambiguous in the visible body, even alongside a <script> copy", () => {
+    const html =
+      '<body><p>dup text</p><p>dup text</p><script>window.__d="dup text";</script></body>';
+    expect(
+      applyContentDiffs(html, [{ id: 2, original_text: "dup text", replacement_html: "<strong>X</strong>" }], M()),
+    ).toBe(html);
   });
   it("skips a drifted diff (original absent)", () => {
     const html = "<p>present</p>";
