@@ -31,6 +31,7 @@ export interface SuggestionResponse {
   meta_description: string;
   meta_keywords: string;
   title: string;
+  h1: string;
   track_page_views: boolean;
   track_link_clicks: boolean;
   custom_link_class: string;
