@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.2.0
+
+### Added — full server-side injection parity
+
+`injectSEO` now performs complete server-side injection matching the SEOJuice edge Worker: internal links (real `<a>` in the body), image alt-text, content diffs, h1 replacement, broken-link fixes, a manifest comment, and the `window.seojuiceSSR` flag. Fails open (returns original HTML) on any error.
+
+- `validateApiResponse` (C1) gates the content-mutating transforms against malformed/actionless payloads — the manifest comment and SSR flag still land unconditionally, matching the Worker's own behavior.
+- Content-area targeting (C2): `insert_into_content_only` restricts internal-link injection to block-content elements (`p`, `li`, `span`, `div`, `td`, `blockquote`, `dd`, `figcaption`), never headings/nav/footer chrome.
+- New first-class `seojuice/next` adapter: `createSeoMiddleware()` (origin-fetch pattern) and `injectResponse()`, the framework-agnostic core. Optional fire-and-forget `/views` beacon (C3) for JS-less AI crawler analytics.
+- `next` added as an optional peer dependency (types only) — zero runtime dependencies are preserved; `next/server` is never bundled.
+
+### Changed (output-visible)
+
+- Internal links are now injected as real `<a>` elements in the body instead of a `<script type="application/json" id="seojuice-links">` blob. On server-rendered routes, drop the client snippet to avoid redundant re-processing (`data-seojuice-cs` markers keep it idempotent if you don't).
+- Existing `<head>` tags (title/meta/OG) are now respected — no duplicate injection.
+- `structured_data` is double-decoded into valid JSON-LD.
+- Attribute escaping now emits `&#039;` (was `&#39;`).
+- Injected nodes carry `data-seojuice*` markers; a `<!-- seojuice: … -->` manifest is appended.
+
+### Fixed
+
+- `SuggestionLink` type now includes `id` (used for change-set markers).
+- Broken-link fixes now read `new_url || replacement_url`, so legacy-shape fixes (where only `replacement_url` is populated) are applied instead of silently skipped.
+
 ## 1.1.0 (2026-03-10)
 
 ### Features
