@@ -9,6 +9,12 @@ export interface SuggestionImage {
   alt_text: string;
 }
 
+export interface SuggestionDiff {
+  id?: number | null;
+  original_text: string;
+  replacement_html: string;
+}
+
 export interface AccessibilityConfig {
   enabled: boolean;
   language: string;
@@ -33,6 +39,7 @@ export interface SuggestionResponse {
   meta_keywords: string;
   title: string;
   h1: string;
+  diffs: SuggestionDiff[];
   track_page_views: boolean;
   track_link_clicks: boolean;
   custom_link_class: string;

@@ -1,4 +1,4 @@
-import type { SuggestionResponse } from "./types/injection.js";
+import type { SuggestionResponse, SuggestionDiff } from "./types/injection.js";
 
 export interface Manifest {
   cs: number[];
@@ -242,4 +242,44 @@ export function injectInternalLinks(html: string, s: SuggestionResponse, manifes
   }
 
   return result.join("");
+}
+
+// Detects a single-root HTML element at the start of replacement_html.
+// Matches <tagname> or <tagname ...attrs...> (tagname must be word chars only).
+export const SINGLE_ROOT_RE = /^<(\w+)(\s[^>]*)?>/;
+
+export function applyContentDiffs(html: string, diffs: SuggestionDiff[], manifest: Manifest): string {
+  if (!Array.isArray(diffs)) return html;
+  for (const d of diffs) {
+    try {
+      const original = d.original_text || "";
+      let replacement = d.replacement_html || "";
+      if (!original || !replacement) continue;
+      if (html.includes(replacement) && !html.includes(original)) continue; // already applied
+      const idx = html.indexOf(original);
+      if (idx === -1) continue; // DOM drift → skip
+      if (html.indexOf(original, idx + 1) !== -1) continue; // ambiguous → skip
+
+      if (d.id != null) {
+        const rootMatch = SINGLE_ROOT_RE.exec(replacement);
+        if (rootMatch) {
+          const markerStr = `data-seojuice-cs="${d.id}"`;
+          if (!replacement.includes(markerStr)) {
+            const openTag = rootMatch[0];
+            const markedOpenTag = openTag.slice(0, -1) + ` ${markerStr}>`;
+            replacement = markedOpenTag + replacement.slice(openTag.length);
+          }
+          if (!html.includes(`data-seojuice-cs="${d.id}"`)) {
+            manifest.cs.push(d.id);
+          }
+        }
+        // bare text / multi-root: no marker, just apply content as-is
+      }
+
+      html = html.slice(0, idx) + replacement + html.slice(idx + original.length);
+    } catch {
+      /* one bad diff never aborts the page */
+    }
+  }
+  return html;
 }

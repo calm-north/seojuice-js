@@ -7,6 +7,7 @@ import {
   replaceH1,
   replaceImages,
   injectInternalLinks,
+  applyContentDiffs,
 } from "../src/transform.js";
 
 export const S = (o: Partial<any> = {}): any => ({
@@ -104,5 +105,34 @@ describe("injectInternalLinks", () => {
     expect(injectInternalLinks("<p>私は投資信託を学ぶ。</p>", s, M())).toContain(
       '<a href="/toushin" data-seojuice-cs="777">投資信託</a>',
     );
+  });
+});
+
+describe("applyContentDiffs", () => {
+  it("applies a unique diff and marks single-root replacement", () => {
+    const out = applyContentDiffs(
+      "<div><p>old copy</p></div>",
+      [{ id: 9, original_text: "<p>old copy</p>", replacement_html: "<p>new copy</p>" }],
+      M(),
+    );
+    expect(out).toBe('<div><p data-seojuice-cs="9">new copy</p></div>');
+  });
+  it("skips an ambiguous diff (original appears twice)", () => {
+    const html = "<p>dup</p><p>dup</p>";
+    expect(applyContentDiffs(html, [{ id: 1, original_text: "dup", replacement_html: "X" }], M())).toBe(html);
+  });
+  it("skips a drifted diff (original absent)", () => {
+    const html = "<p>present</p>";
+    expect(applyContentDiffs(html, [{ id: 1, original_text: "missing", replacement_html: "X" }], M())).toBe(html);
+  });
+  it("is idempotent (already applied)", () => {
+    const html = '<p data-seojuice-cs="9">new copy</p>';
+    expect(
+      applyContentDiffs(
+        html,
+        [{ id: 9, original_text: "<p>old copy</p>", replacement_html: '<p data-seojuice-cs="9">new copy</p>' }],
+        M(),
+      ),
+    ).toBe(html);
   });
 });
