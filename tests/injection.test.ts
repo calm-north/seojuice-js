@@ -106,6 +106,25 @@ describe("fetchSuggestions", () => {
     expect(result.title).toBe("My Page");
     expect(result.meta_description).toBe("A description");
   });
+
+  it("rejects an over-cap Content-Length without ever parsing the body (I3)", async () => {
+    const jsonSpy = vi.fn();
+    const oversized = {
+      ok: true,
+      headers: { get: (name: string) => (name === "content-length" ? "10000000" : null) },
+      json: jsonSpy,
+    };
+    const fetchFn = vi.fn().mockResolvedValue(oversized);
+    await expect(fetchSuggestions("https://x.com/p", { fetch: fetchFn })).rejects.toThrow();
+    expect(jsonSpy).not.toHaveBeenCalled();
+  });
+
+  it("still works when Content-Length/headers are absent, matching existing lightweight mocks", async () => {
+    const suggestions = createSuggestionResponse({ title: "ok" });
+    const fetchFn = vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue(suggestions) });
+    const result = await fetchSuggestions("https://x.com/p", { fetch: fetchFn });
+    expect(result.title).toBe("ok");
+  });
 });
 
 describe("injectSEO", () => {
@@ -331,6 +350,23 @@ describe("injectSEO", () => {
   });
 });
 
+describe("injectSEO null/undefined guards (C3/I1)", () => {
+  it("returns an empty string for null without throwing", () => {
+    expect(injectSEO(null)).toBe("");
+  });
+  it("returns an empty string for undefined without throwing", () => {
+    expect(injectSEO(undefined)).toBe("");
+  });
+  it("returns an empty string for {} (missing html) without throwing", () => {
+    expect(injectSEO({} as any)).toBe("");
+  });
+  it("returns an empty string — not the number — for a non-string html (I1)", () => {
+    const result = injectSEO({ html: 123 } as any);
+    expect(typeof result).toBe("string");
+    expect(result).toBe("");
+  });
+});
+
 describe("injectResponse", () => {
   it("fetches then injects, fails open on fetch error", async () => {
     const ok = vi.fn().mockResolvedValue({
@@ -358,5 +394,16 @@ describe("injectResponse", () => {
     });
     const [calledUrl] = fetchFn.mock.calls[0];
     expect(String(calledUrl)).toContain("https://custom.seojuice.io/suggestions?");
+  });
+});
+
+describe("injectResponse null/undefined guards (C3)", () => {
+  it("returns an empty string for null without throwing", async () => {
+    await expect(injectResponse(null)).resolves.toBe("");
+  });
+  it("returns an empty string for {} without throwing or attempting a fetch", async () => {
+    const fetchSpy = vi.fn();
+    await expect(injectResponse({ fetch: fetchSpy } as any)).resolves.toBe("");
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

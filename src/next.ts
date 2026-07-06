@@ -5,6 +5,10 @@ import { injectResponse } from "./injection.js";
 
 const DEFAULT_API = "https://smart.seojuice.io";
 
+// I3 — a hostile/misbehaving upstream must not be able to OOM the process
+// via an unbounded body. 10 MB is generous for real HTML pages.
+const MAX_HTML_BYTES = 10_000_000;
+
 /**
  * Sentinel header stamped on the origin self-fetch so a re-entrant middleware
  * invocation (Next.js re-runs middleware on `fetch(request)` subrequests) can
@@ -70,30 +74,45 @@ export function createSeoMiddleware(options: CreateSeoMiddlewareOptions = {}) {
       return NextResponse.next();
     }
 
-    const url = request.nextUrl.toString();
-    const fwd = new Headers(request.headers);
-    fwd.set(SSR_GUARD_HEADER, "1");
-    const origin = await fetch(request, { headers: fwd });
-    const ct = origin.headers.get("content-type") || "";
+    try {
+      const url = request.nextUrl.toString();
+      const fwd = new Headers(request.headers);
+      fwd.set(SSR_GUARD_HEADER, "1");
+      const origin = await fetch(request, { headers: fwd });
+      const ct = origin.headers.get("content-type") || "";
 
-    if (!ct.includes("text/html")) return origin as unknown as NextResponse;
+      if (!ct.includes("text/html")) return origin as unknown as NextResponse;
 
-    if (options.beacon) {
-      void sendViewBeacon(
-        apiBase,
-        url,
-        request.headers.get("user-agent") || "",
-        request.headers.get("referer") || "",
-      );
+      // I3 — never buffer an oversized upstream body into memory. Fail
+      // open by serving the origin response untouched (best-effort: only
+      // catches the case where the origin declares Content-Length).
+      const contentLength = origin.headers.get("content-length");
+      if (contentLength && Number(contentLength) > MAX_HTML_BYTES) {
+        return origin as unknown as NextResponse;
+      }
+
+      if (options.beacon) {
+        void sendViewBeacon(
+          apiBase,
+          url,
+          request.headers.get("user-agent") || "",
+          request.headers.get("referer") || "",
+        );
+      }
+
+      const html = await origin.text();
+      const enhanced = await injectResponse({ html, url, apiBase });
+
+      const headers = new Headers(origin.headers);
+      headers.delete("content-length");
+      headers.delete("content-encoding");
+
+      return new NextResponse(enhanced, { status: origin.status, headers });
+    } catch {
+      // C2 — a transient origin hiccup (ECONNREFUSED, aborted stream, etc.)
+      // must never become a hard 500 for a page Next would have rendered
+      // fine on its own. Fall back to normal rendering.
+      return NextResponse.next();
     }
-
-    const html = await origin.text();
-    const enhanced = await injectResponse({ html, url, apiBase });
-
-    const headers = new Headers(origin.headers);
-    headers.delete("content-length");
-    headers.delete("content-encoding");
-
-    return new NextResponse(enhanced, { status: origin.status, headers });
   };
 }

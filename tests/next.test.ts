@@ -121,4 +121,62 @@ describe("createSeoMiddleware", () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  it("returns NextResponse.next() (fails open) when the origin fetch rejects (C2)", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error("ECONNREFUSED"));
+    try {
+      const middleware = createSeoMiddleware();
+      const request = {
+        nextUrl: { toString: () => "https://x.com/page" },
+        headers: new Headers(),
+      } as any;
+      const result = await middleware(request);
+      expect(result.headers.get("x-middleware-next")).toBe("1");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("returns NextResponse.next() (fails open) when reading the origin body rejects (C2)", async () => {
+    const brokenResponse = {
+      headers: new Headers({ "content-type": "text/html" }),
+      status: 200,
+      text: vi.fn().mockRejectedValue(new Error("aborted")),
+    };
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue(brokenResponse);
+    try {
+      const middleware = createSeoMiddleware();
+      const request = {
+        nextUrl: { toString: () => "https://x.com/page" },
+        headers: new Headers(),
+      } as any;
+      const result = await middleware(request);
+      expect(result.headers.get("x-middleware-next")).toBe("1");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("returns the origin response untouched (never reads the body) when Content-Length exceeds the HTML cap (I3)", async () => {
+    const oversized = new Response("<html><body>small body, huge declared length</body></html>", {
+      headers: { "content-type": "text/html", "content-length": "50000000" },
+    });
+    const textSpy = vi.spyOn(oversized, "text");
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue(oversized);
+    try {
+      const middleware = createSeoMiddleware();
+      const request = {
+        nextUrl: { toString: () => "https://x.com/huge" },
+        headers: new Headers(),
+      } as any;
+      const result = await middleware(request);
+      expect(result).toBe(oversized);
+      expect(textSpy).not.toHaveBeenCalled();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
