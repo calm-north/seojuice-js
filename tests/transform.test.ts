@@ -6,6 +6,7 @@ import {
   replaceMetaTags,
   replaceH1,
   replaceImages,
+  injectInternalLinks,
 } from "../src/transform.js";
 
 export const S = (o: Partial<any> = {}): any => ({
@@ -75,5 +76,33 @@ describe("replaceImages", () => {
     const s = S({ images: [{ url: "https://cdn.x/a.png", alt_text: "A nice chart" }] });
     const html = '<img src="https://cdn.x/a.png" alt="already meaningful">';
     expect(replaceImages(html, s, M())).toBe(html);
+  });
+});
+
+describe("injectInternalLinks", () => {
+  it("links first occurrence only, with cs marker", () => {
+    const s = S({ suggestions: [{ keyword: "SWP plan", url: "/swp", id: 7 }] });
+    const out = injectInternalLinks("<p>Learn SWP plan. Another SWP plan here.</p>", s, M());
+    expect(out).toBe('<p>Learn <a href="/swp" data-seojuice-cs="7">SWP plan</a>. Another SWP plan here.</p>');
+  });
+  it("never links inside an existing anchor or heading", () => {
+    const s = S({ suggestions: [{ keyword: "SWP", url: "/swp", id: 1 }] });
+    expect(injectInternalLinks('<a href="/x">SWP</a>', s, M())).toBe('<a href="/x">SWP</a>');
+    expect(injectInternalLinks("<h1>SWP</h1>", s, M())).toBe("<h1>SWP</h1>");
+  });
+  it("applies custom_link_class", () => {
+    const s = S({ suggestions: [{ keyword: "SWP", url: "/swp", id: 2 }], custom_link_class: "brand" });
+    expect(injectInternalLinks("<p>SWP</p>", s, M())).toContain('class="seojuice-link brand"');
+  });
+  it("links a Chinese keyword between CJK chars when isAsian", () => {
+    const s = S({ suggestions: [{ keyword: "投资基金", url: "/funds", id: 501 }], isAsian: true });
+    const out = injectInternalLinks("<p>我想了解投资基金的收益。</p>", s, M());
+    expect(out).toBe('<p>我想了解<a href="/funds" data-seojuice-cs="501">投资基金</a>的收益。</p>');
+  });
+  it("links a Japanese keyword (kanji+kana) when isAsian", () => {
+    const s = S({ suggestions: [{ keyword: "投資信託", url: "/toushin", id: 777 }], isAsian: true });
+    expect(injectInternalLinks("<p>私は投資信託を学ぶ。</p>", s, M())).toContain(
+      '<a href="/toushin" data-seojuice-cs="777">投資信託</a>',
+    );
   });
 });

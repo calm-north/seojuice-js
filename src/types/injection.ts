@@ -1,6 +1,7 @@
 export interface SuggestionLink {
   keyword: string;
   url: string;
+  id?: number | null;
 }
 
 export interface SuggestionImage {

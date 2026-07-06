@@ -174,3 +174,72 @@ export function replaceImages(html: string, s: SuggestionResponse, manifest: Man
     return match.replace(/<img/, `<img alt="${altText}" data-seojuice="alt"`);
   });
 }
+
+interface LinkPattern {
+  keyword: string;
+  kl: string;
+  url: string;
+  id: number | null;
+  pattern: RegExp;
+}
+
+export function injectInternalLinks(html: string, s: SuggestionResponse, manifest: Manifest): string {
+  if (!s.suggestions || !Array.isArray(s.suggestions)) return html;
+
+  const isAsian = s.isAsian || false;
+  const customLinkClass = s.custom_link_class || "";
+  const replacedKeywords = new Set<string>();
+
+  const links: LinkPattern[] = [];
+  for (const link of s.suggestions) {
+    if (!link.keyword || !link.url) continue;
+    const kl = link.keyword.toLowerCase();
+    if (replacedKeywords.has(kl)) continue;
+    replacedKeywords.add(kl);
+    const escapedKeyword = escapeRegExp(link.keyword);
+    const pattern = isAsian
+      ? new RegExp(
+          `(?<=[\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}]|^)(${escapedKeyword})(?=[\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}\\.!\\?\\)\\]\\/]|$)`,
+          "u",
+        )
+      : new RegExp(
+          `(?<=^|\\s|[([{<>"'«‹„"'|/]|\\-|:|'|'|')(${escapedKeyword})(?=$|\\s|[)\\]}>"'»›"'|/]|\\-|[.,:;!?]|'|'|')`,
+          "i",
+        );
+    links.push({ keyword: link.keyword, kl, url: link.url, id: link.id != null ? link.id : null, pattern });
+  }
+  replacedKeywords.clear();
+
+  if (links.length === 0) return html;
+
+  const segments = tokenizeHTML(html);
+  let skipDepth = 0;
+  const result: string[] = [];
+
+  for (const seg of segments) {
+    if (seg.type === "tag") {
+      if (SKIP_TAG_RE.test(seg.value)) skipDepth++;
+      else if (CLOSE_TAG_RE.test(seg.value) && skipDepth > 0) skipDepth--;
+      result.push(seg.value);
+    } else {
+      let text = seg.value;
+      if (skipDepth === 0) {
+        for (const link of links) {
+          if (replacedKeywords.has(link.kl)) continue;
+          text = text.replace(link.pattern, (match: string) => {
+            if (replacedKeywords.has(link.kl)) return match;
+            const classAttr = customLinkClass ? ` class="seojuice-link ${customLinkClass}"` : "";
+            const csAttr = link.id != null ? ` data-seojuice-cs="${link.id}"` : "";
+            const replacement = `<a href="${escapeHtml(link.url)}"${classAttr}${csAttr}>${escapeHtml(link.keyword)}</a>`;
+            replacedKeywords.add(link.kl);
+            if (link.id != null) manifest.cs.push(link.id);
+            return replacement;
+          });
+        }
+      }
+      result.push(text);
+    }
+  }
+
+  return result.join("");
+}
