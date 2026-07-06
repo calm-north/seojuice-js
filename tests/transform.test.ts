@@ -65,6 +65,14 @@ describe("replaceMetaTags / replaceH1", () => {
       '<script type="application/ld+json" data-seojuice="schema">{"@context":"https://schema.org","@type":"Article"}</script>',
     );
   });
+  it("ignores single-encoded structured_data by design (M1 — Worker parity requires double-encoding)", () => {
+    const inner = { "@context": "https://schema.org", "@type": "Article" };
+    // NOT double-encoded — a plain JSON string, which is what a naive
+    // caller might send. This must be silently ignored, not "fixed".
+    const payload = S({ structured_data: JSON.stringify(inner) });
+    const out = replaceMetaTags("<head></head>", payload, M());
+    expect(out).not.toContain("application/ld+json");
+  });
   it("replaces h1 inner text and marks it", () => {
     const out = replaceH1("<h1 class='t'>old</h1>", S({ h1: "New" }), M());
     expect(out).toBe('<h1 class=\'t\' data-seojuice="h1">New</h1>');

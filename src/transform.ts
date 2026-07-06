@@ -123,6 +123,12 @@ export function replaceMetaTags(
     html = html.replace(/<\/head>/i, `<meta property="og:image" content="${escapeHtml(og_image)}">\n</head>`);
   }
 
+  // M1 — intentional Worker parity: structured_data must be DOUBLE JSON
+  // encoded (a JSON string containing an inner JSON string). If a caller
+  // sends a plain single-encoded JSON string, the second JSON.parse below
+  // receives a non-string (an object) and throws, and the catch below
+  // silently skips schema injection for that response. This mirrors the
+  // SEOJuice edge Worker's own (documented) behavior — do not change it.
   if (injectStructuredData && structured_data && structured_data !== "null") {
     try {
       const jsonString = JSON.parse(structured_data);
@@ -143,22 +149,24 @@ export function replaceMetaTags(
 }
 
 export function replaceH1(html: string, s: SuggestionResponse, manifest: Manifest): string {
-  if (!s.h1) return html;
+  const h1 = s.h1;
+  if (!h1) return html;
   return html.replace(/(<h1[^>]*>)([\s\S]*?)(<\/h1>)/i, (_m, open: string, _inner: string, close: string) => {
     let markedOpen = open;
     if (!markedOpen.includes("data-seojuice=")) {
       markedOpen = markedOpen.replace(/>$/, ' data-seojuice="h1">');
     }
     manifest.h1 = 1;
-    return markedOpen + escapeHtml(s.h1) + close;
+    return markedOpen + escapeHtml(h1) + close;
   });
 }
 
 export function replaceImages(html: string, s: SuggestionResponse, manifest: Manifest): string {
-  if (!s.images || !Array.isArray(s.images)) return html;
+  const images = s.images;
+  if (!images || !Array.isArray(images)) return html;
 
   const imageMap = new Map<string, string>();
-  for (const img of s.images) {
+  for (const img of images) {
     if (img.url && img.alt_text) {
       imageMap.set(normalizeImageUrl(img.url), img.alt_text);
     }
@@ -201,14 +209,15 @@ interface LinkPattern {
 }
 
 export function injectInternalLinks(html: string, s: SuggestionResponse, manifest: Manifest): string {
-  if (!s.suggestions || !Array.isArray(s.suggestions)) return html;
+  const suggestionsList = s.suggestions;
+  if (!suggestionsList || !Array.isArray(suggestionsList)) return html;
 
   const isAsian = s.isAsian || false;
   const customLinkClass = s.custom_link_class || "";
   const replacedKeywords = new Set<string>();
 
   const links: LinkPattern[] = [];
-  for (const link of s.suggestions) {
+  for (const link of suggestionsList) {
     if (!link.keyword || !link.url) continue;
     const kl = link.keyword.toLowerCase();
     if (replacedKeywords.has(kl)) continue;
@@ -317,6 +326,17 @@ export function applyContentDiffs(html: string, diffs: SuggestionDiff[], manifes
 // zero risk of collateral string replacement anywhere else in the document.
 // The `\s`-anchor before the attribute name ensures `data-href`/`data-src`
 // never match when the target attribute is `href`/`src`.
+//
+// C1 — perf: earlier versions ran one whole-document regex per fix with an
+// unbounded `[^>]*` / `[\s\S]*?` catch-all. On a huge run of non-`>`
+// characters containing a stray `<a`/`<img` substring (e.g. an inline
+// `<script type="application/json">` island holding serialized HTML), that
+// catch-all backtracks per-character from every candidate start position,
+// going O(n^2) (measured: 200 KB -> ~8s, a realistic 1.9 MB page -> ~90s of
+// blocked event loop). Fixed by tokenizing the document once (linear,
+// `tokenizeHTML`) and testing/rewriting only genuine `<a>`/`<img>` tag
+// tokens: the pathological non-`>` run collapses into a single token that
+// is scanned once, not re-scanned per embedded fake `<a`/`<img` occurrence.
 export function applyBrokenLinkFixes(html: string, fixes: BrokenLinkFix[]): string {
   if (!Array.isArray(fixes) || fixes.length === 0) return html;
 
@@ -334,21 +354,18 @@ export function applyBrokenLinkFixes(html: string, fixes: BrokenLinkFix[]): stri
       if (tag !== "a" && tag !== "img") continue;
       if (attr !== "href" && attr !== "src") continue;
 
+      // Cheap O(n) guard: the overwhelming common case is "this broken URL
+      // isn't even in the page" — skip all tag-scanning work for it.
+      if (!html.includes(oldUrl)) continue;
+
       const escapedOldUrl = escapeRegExp(oldUrl);
 
       if (action === "replace") {
-        const re = new RegExp(`(<${tag}\\b[^>]*\\s${attr}=)(["'])(${escapedOldUrl})\\2([^>]*>)`, "gi");
-        html = html.replace(
-          re,
-          (_m: string, before: string, quote: string, _old: string, after: string) =>
-            `${before}${quote}${escapeHtml(newUrl)}${quote}${after}`,
-        );
+        html = replaceBrokenLinkAttr(html, tag, attr, escapedOldUrl, newUrl);
       } else if (tag === "img") {
-        const re = new RegExp(`<img\\b[^>]*\\s${attr}=["']${escapedOldUrl}["'][^>]*>`, "gi");
-        html = html.replace(re, "");
+        html = unlinkBrokenImage(html, attr, escapedOldUrl);
       } else {
-        const re = new RegExp(`<a\\b[^>]*\\s${attr}=["']${escapedOldUrl}["'][^>]*>[\\s\\S]*?<\\/a>`, "gi");
-        html = html.replace(re, "");
+        html = unlinkBrokenAnchor(html, attr, escapedOldUrl);
       }
     } catch {
       /* one bad fix never aborts the page */
@@ -356,6 +373,77 @@ export function applyBrokenLinkFixes(html: string, fixes: BrokenLinkFix[]): stri
   }
 
   return html;
+}
+
+// Rewrites the attr value on every real `<tag ...>` token whose attr equals
+// oldUrl. Scoped per-token (each token is bounded by tokenizeHTML's own
+// linear `<[^>]*>` scan), so cost is O(sum of token lengths) = O(n), not
+// O(n^2). The trailing backreference \2 requires the same quote char on
+// both sides of the value — preserved from the original whole-document regex.
+function replaceBrokenLinkAttr(
+  html: string,
+  tag: string,
+  attr: string,
+  escapedOldUrl: string,
+  newUrl: string,
+): string {
+  const openRe = new RegExp(`^(<${tag}\\b[^>]*\\s${attr}=)(["'])(${escapedOldUrl})\\2([^>]*>)$`, "i");
+  const segments = tokenizeHTML(html);
+  return segments
+    .map((seg) => {
+      if (seg.type !== "tag") return seg.value;
+      const m = openRe.exec(seg.value);
+      if (!m) return seg.value;
+      return `${m[1]}${m[2]}${escapeHtml(newUrl)}${m[2]}${m[4]}`;
+    })
+    .join("");
+}
+
+// Drops every real `<img ...>` token whose attr equals oldUrl. Note: quote
+// chars on the two sides are matched independently (no backreference) —
+// this preserves a quirk of the original regex, kept intentionally for
+// byte-identical output.
+function unlinkBrokenImage(html: string, attr: string, escapedOldUrl: string): string {
+  const re = new RegExp(`^<img\\b[^>]*\\s${attr}=["']${escapedOldUrl}["'][^>]*>$`, "i");
+  const segments = tokenizeHTML(html);
+  return segments.map((seg) => (seg.type === "tag" && re.test(seg.value) ? "" : seg.value)).join("");
+}
+
+// Drops a whole `<a ...>...</a>` element: finds the real open-tag token
+// whose attr equals oldUrl, then scans forward for the first literal
+// `</a>` token — matching the original's lazy `[\s\S]*?<\/a>` semantics
+// (first close wins; nested tags in between don't matter). If no closing
+// tag is found within MAX_UNLINK_SCAN_TOKENS, treat as unmatched (fail
+// open, leave the open tag untouched) rather than scanning unbounded —
+// this bounds the pathological case of many unclosed anchors sharing the
+// same broken href.
+const MAX_UNLINK_SCAN_TOKENS = 20_000;
+
+function unlinkBrokenAnchor(html: string, attr: string, escapedOldUrl: string): string {
+  const openRe = new RegExp(`^<a\\b[^>]*\\s${attr}=["']${escapedOldUrl}["'][^>]*>$`, "i");
+  const closeRe = /^<\/a>$/i;
+  const segments = tokenizeHTML(html);
+  const out: string[] = [];
+  let i = 0;
+  while (i < segments.length) {
+    const seg = segments[i];
+    if (seg.type === "tag" && openRe.test(seg.value)) {
+      const scanLimit = Math.min(segments.length, i + 1 + MAX_UNLINK_SCAN_TOKENS);
+      let j = i + 1;
+      while (j < scanLimit && !(segments[j].type === "tag" && closeRe.test(segments[j].value))) {
+        j++;
+      }
+      if (j < scanLimit) {
+        // Found the closing </a> within bound — drop the whole element.
+        i = j + 1;
+        continue;
+      }
+      // No closing tag found (or bound exceeded) — leave this open tag untouched.
+    }
+    out.push(seg.value);
+    i++;
+  }
+  return out.join("");
 }
 
 export function addManifestComment(html: string, manifest: Manifest): string {
