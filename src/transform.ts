@@ -136,3 +136,41 @@ export function replaceH1(html: string, s: SuggestionResponse, manifest: Manifes
     return markedOpen + escapeHtml(s.h1) + close;
   });
 }
+
+export function replaceImages(html: string, s: SuggestionResponse, manifest: Manifest): string {
+  if (!s.images || !Array.isArray(s.images)) return html;
+
+  const imageMap = new Map<string, string>();
+  for (const img of s.images) {
+    if (img.url && img.alt_text) {
+      imageMap.set(normalizeImageUrl(img.url), img.alt_text);
+    }
+  }
+
+  if (imageMap.size === 0) return html;
+
+  return html.replace(/<img([^>]+)>/gi, (match: string, attributes: string) => {
+    const srcMatch = attributes.match(/(?:src|data-src)=["']([^"']+)["']/);
+    if (!srcMatch) return match;
+
+    const normalizedSrc = normalizeImageUrl(srcMatch[1]);
+    if (!imageMap.has(normalizedSrc)) return match;
+
+    const altMatch = match.match(/alt=["']([^"']*)["']/);
+    const existingAlt = altMatch ? altMatch[1] : "";
+
+    if (existingAlt && existingAlt.length >= 5) return match;
+
+    const altText = escapeHtml(imageMap.get(normalizedSrc) as string);
+    manifest.img += 1;
+
+    if (altMatch) {
+      let replaced = match.replace(/alt=["'][^"']*["']/, `alt="${altText}"`);
+      if (!replaced.includes("data-seojuice=")) {
+        replaced = replaced.replace(/<img/, `<img data-seojuice="alt"`);
+      }
+      return replaced;
+    }
+    return match.replace(/<img/, `<img alt="${altText}" data-seojuice="alt"`);
+  });
+}

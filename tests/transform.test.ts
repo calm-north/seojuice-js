@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { escapeHtml, normalizeImageUrl, tokenizeHTML, replaceMetaTags, replaceH1 } from "../src/transform.js";
+import {
+  escapeHtml,
+  normalizeImageUrl,
+  tokenizeHTML,
+  replaceMetaTags,
+  replaceH1,
+  replaceImages,
+} from "../src/transform.js";
 
 export const S = (o: Partial<any> = {}): any => ({
   suggestions: [],
@@ -55,5 +62,18 @@ describe("replaceMetaTags / replaceH1", () => {
   it("replaces h1 inner text and marks it", () => {
     const out = replaceH1("<h1 class='t'>old</h1>", S({ h1: "New" }), M());
     expect(out).toBe('<h1 class=\'t\' data-seojuice="h1">New</h1>');
+  });
+});
+
+describe("replaceImages", () => {
+  it("fills empty alt from images by normalized url", () => {
+    const s = S({ images: [{ url: "https://cdn.x/a.png", alt_text: "A nice chart" }] });
+    const out = replaceImages('<img src="https://cdn.x/a.png?v=2">', s, M());
+    expect(out).toBe('<img alt="A nice chart" data-seojuice="alt" src="https://cdn.x/a.png?v=2">');
+  });
+  it("does not overwrite a good existing alt", () => {
+    const s = S({ images: [{ url: "https://cdn.x/a.png", alt_text: "A nice chart" }] });
+    const html = '<img src="https://cdn.x/a.png" alt="already meaningful">';
+    expect(replaceImages(html, s, M())).toBe(html);
   });
 });
