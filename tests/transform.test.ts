@@ -10,6 +10,8 @@ import {
   applyContentDiffs,
   applyBrokenLinkFixes,
   validateApiResponse,
+  addSsrFlag,
+  addManifestComment,
 } from "../src/transform.js";
 
 export const S = (o: Partial<any> = {}): any => ({
@@ -202,5 +204,27 @@ describe("injectInternalLinks content-area targeting (C2)", () => {
   it("broad mode (flag false) links anywhere non-skip", () => {
     const s = S({ suggestions: [{ keyword: "SWP", url: "/swp", id: 1 }], insert_into_content_only: false });
     expect(injectInternalLinks("<nav>SWP</nav>", s, M())).toContain('<a href="/swp"');
+  });
+});
+
+describe("manifest comment + SSR flag", () => {
+  it("adds SSR flag once (idempotent)", () => {
+    const once = addSsrFlag("<body></body>");
+    expect(once).toContain("<script>window.seojuiceSSR = true;</script>");
+    expect(addSsrFlag(once)).toBe(once);
+  });
+  it("builds a manifest comment from mutations and is idempotent", () => {
+    const manifest = M();
+    manifest.cs.push(5);
+    manifest.meta.push("title");
+    manifest.img = 2;
+    manifest.schema = 1;
+    manifest.h1 = 1;
+    const out = addManifestComment("<body></body>", manifest);
+    expect(out).toBe("<body><!-- seojuice: cs=[5] meta=[title] img=2 schema=1 h1=1 -->\n</body>");
+    expect(addManifestComment(out, M())).toBe(out);
+  });
+  it("adds no comment when manifest is empty", () => {
+    expect(addManifestComment("<body></body>", M())).toBe("<body></body>");
   });
 });

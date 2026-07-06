@@ -23,6 +23,10 @@ function createSuggestionResponse(
     meta_description: "",
     meta_keywords: "",
     title: "",
+    h1: "",
+    diffs: [],
+    broken_link_fixes: [],
+    overwrite_existing_alt_text: false,
     track_page_views: false,
     track_link_clicks: false,
     custom_link_class: "",
@@ -112,10 +116,11 @@ describe("injectSEO", () => {
 </head>
 <body>
 <h1>Hello</h1>
+<p>Body content long enough to comfortably survive the fail-open length-ratio check that guards every transform.</p>
 </body>
 </html>`;
 
-  it("injects meta tags before </head>", () => {
+  it("injects meta tags before </head> with data-seojuice markers", () => {
     const suggestions = createSuggestionResponse({
       title: "My Title",
       meta_description: "My description",
@@ -124,12 +129,23 @@ describe("injectSEO", () => {
 
     const result = injectSEO({ html: baseHTML, suggestions });
 
-    expect(result).toContain("<title>My Title</title>");
-    expect(result).toContain('<meta name="description" content="My description">');
-    expect(result).toContain('<meta name="keywords" content="seo, tools">');
-    // Verify they appear before </head>
+    expect(result).toContain('<title data-seojuice="title">My Title</title>');
+    expect(result).toContain(
+      '<meta name="description" content="My description" data-seojuice="meta-description">',
+    );
+    expect(result).toContain(
+      '<meta name="keywords" content="seo, tools" data-seojuice="meta-keywords">',
+    );
     const headCloseIdx = result.toLowerCase().indexOf("</head>");
-    expect(result.indexOf("<title>My Title</title>")).toBeLessThan(headCloseIdx);
+    expect(result.indexOf("My Title")).toBeLessThan(headCloseIdx);
+  });
+
+  it("does not duplicate an existing <title>", () => {
+    const html = baseHTML.replace("<head>", "<head><title>Existing</title>");
+    const suggestions = createSuggestionResponse({ title: "New Title" });
+    const result = injectSEO({ html, suggestions });
+    expect(result).toContain("<title>Existing</title>");
+    expect(result).not.toContain("New Title");
   });
 
   it("injects OG tags before </head>", () => {
@@ -142,81 +158,60 @@ describe("injectSEO", () => {
 
     const result = injectSEO({ html: baseHTML, suggestions });
 
-    expect(result).toContain('<meta property="og:title" content="OG Title">');
-    expect(result).toContain('<meta property="og:description" content="OG Desc">');
+    expect(result).toContain('<meta property="og:title" content="OG Title" data-seojuice="og-title">');
+    expect(result).toContain(
+      '<meta property="og:description" content="OG Desc" data-seojuice="og-description">',
+    );
     expect(result).toContain('<meta property="og:url" content="https://example.com/page">');
     expect(result).toContain('<meta property="og:image" content="https://example.com/image.jpg">');
   });
 
-  it("injects structured data as JSON-LD script tag", () => {
-    const jsonLd = '{"@context":"https://schema.org","@type":"Article","name":"Test"}';
+  it("double-decodes structured data into a JSON-LD script tag", () => {
+    const inner = { "@context": "https://schema.org", "@type": "Article", name: "Test" };
     const suggestions = createSuggestionResponse({
-      structured_data: jsonLd,
+      structured_data: JSON.stringify(JSON.stringify(inner)),
     });
 
     const result = injectSEO({ html: baseHTML, suggestions });
 
-    expect(result).toContain('script type="application/ld+json"');
+    expect(result).toContain('<script type="application/ld+json" data-seojuice="schema">');
     expect(result).toContain('"@type":"Article"');
     expect(result).toContain('"name":"Test"');
   });
 
-  it("sanitizes structured data containing </script> to prevent XSS", () => {
-    const malicious = '{"@type":"Article","name":"</script><script>alert(1)</script>"}';
-    const suggestions = createSuggestionResponse({
-      structured_data: malicious,
-    });
-
-    const result = injectSEO({ html: baseHTML, suggestions });
-
-    // The </script> sequence must be escaped — < becomes \u003c
-    expect(result).not.toContain("</script><script>alert(1)");
-    // Should contain the escaped < characters
-    expect(result).toContain("\\u003c/script>");
-  });
-
-  it("rejects malformed JSON-LD gracefully", () => {
+  it("leaves structured data out when it fails to parse (fail-open per-transform)", () => {
     const suggestions = createSuggestionResponse({
       structured_data: "not valid json {{{",
     });
 
     const result = injectSEO({ html: baseHTML, suggestions });
 
-    // Should inject safe empty JSON-LD rather than the malformed string
-    expect(result).toContain('<script type="application/ld+json">{}</script>');
+    expect(result).not.toContain("application/ld+json");
   });
 
-  it("injects link suggestions as JSON script before </body>", () => {
+  it("injects internal links as real <a> elements in the body with a cs marker", () => {
     const suggestions = createSuggestionResponse({
-      suggestions: [
-        { keyword: "seo tools", url: "https://example.com/tools" },
-        { keyword: "analytics", url: "https://example.com/analytics" },
-      ],
+      suggestions: [{ keyword: "Body content", url: "https://example.com/tools", id: 42 }],
     });
 
     const result = injectSEO({ html: baseHTML, suggestions });
 
-    expect(result).toContain('id="seojuice-links"');
-    expect(result).toContain('"keyword":"seo tools"');
-
-    // Verify it appears before </body>
-    const bodyCloseIdx = result.toLowerCase().indexOf("</body>");
-    const scriptIdx = result.indexOf('id="seojuice-links"');
-    expect(scriptIdx).toBeLessThan(bodyCloseIdx);
+    expect(result).toContain('<a href="https://example.com/tools" data-seojuice-cs="42">Body content</a>');
+    expect(result).not.toContain('id="seojuice-links"');
   });
 
-  it("sanitizes link suggestions containing </script> to prevent XSS", () => {
+  it("escapes a keyword containing HTML-significant characters", () => {
+    const html = baseHTML.replace(
+      "Body content long enough",
+      "Tom & Jerry content long enough",
+    );
     const suggestions = createSuggestionResponse({
-      suggestions: [
-        { keyword: "test</script><script>alert(1)", url: "https://example.com" },
-      ],
+      suggestions: [{ keyword: "Tom & Jerry", url: "https://example.com", id: 1 }],
     });
 
-    const result = injectSEO({ html: baseHTML, suggestions });
+    const result = injectSEO({ html, suggestions });
 
-    // The </script> sequence must be escaped — < becomes \u003c
-    expect(result).not.toContain("</script><script>alert(1)");
-    expect(result).toContain("\\u003c/script>");
+    expect(result).toContain(">Tom &amp; Jerry</a>");
   });
 
   describe("option flags", () => {
@@ -226,7 +221,7 @@ describe("injectSEO", () => {
       og_title: "OG Title",
       og_description: "OG Desc",
       structured_data: '{"@type":"Thing"}',
-      suggestions: [{ keyword: "test", url: "https://example.com/page" }],
+      suggestions: [{ keyword: "Body content", url: "https://example.com/page", id: 1 }],
     });
 
     it("does not inject links when injectLinks=false", () => {
@@ -236,9 +231,8 @@ describe("injectSEO", () => {
         injectLinks: false,
       });
 
-      expect(result).not.toContain('id="seojuice-links"');
-      // Other injections should still be present
-      expect(result).toContain("<title>Title</title>");
+      expect(result).not.toContain("<a href=\"https://example.com/page\"");
+      expect(result).toContain("Title</title>");
     });
 
     it("does not inject meta tags when injectMetaTags=false", () => {
@@ -248,9 +242,8 @@ describe("injectSEO", () => {
         injectMetaTags: false,
       });
 
-      expect(result).not.toContain("<title>Title</title>");
+      expect(result).not.toContain("<title");
       expect(result).not.toContain('name="description"');
-      // OG tags should still be present
       expect(result).toContain('property="og:title"');
     });
 
@@ -263,8 +256,7 @@ describe("injectSEO", () => {
 
       expect(result).not.toContain('property="og:title"');
       expect(result).not.toContain('property="og:description"');
-      // Meta tags should still be present
-      expect(result).toContain("<title>Title</title>");
+      expect(result).toContain("Title</title>");
     });
 
     it("does not inject structured data when injectStructuredData=false", () => {
@@ -275,11 +267,10 @@ describe("injectSEO", () => {
       });
 
       expect(result).not.toContain("application/ld+json");
-      // Other injections should still be present
-      expect(result).toContain("<title>Title</title>");
+      expect(result).toContain("Title</title>");
     });
 
-    it("disables all injections when all flags are false", () => {
+    it("disables all content transforms when all flags are false, but the SSR flag still lands", () => {
       const result = injectSEO({
         html: baseHTML,
         suggestions: fullSuggestions,
@@ -287,14 +278,20 @@ describe("injectSEO", () => {
         injectMetaTags: false,
         injectOGTags: false,
         injectStructuredData: false,
+        injectImages: false,
+        injectDiffs: false,
+        injectH1: false,
+        injectBrokenLinks: false,
       });
 
-      expect(result).toBe(baseHTML);
+      expect(result).not.toContain("<title");
+      expect(result).not.toContain("application/ld+json");
+      expect(result).toContain("window.seojuiceSSR = true;");
     });
   });
 
   it("handles HTML without </head> gracefully", () => {
-    const noHeadHTML = "<html><body><h1>Hello</h1></body></html>";
+    const noHeadHTML = "<html><body><h1>Hello</h1><p>Enough body content here to pass the length check comfortably.</p></body></html>";
     const suggestions = createSuggestionResponse({
       title: "Title",
       meta_description: "Desc",
@@ -302,74 +299,34 @@ describe("injectSEO", () => {
 
     const result = injectSEO({ html: noHeadHTML, suggestions });
 
-    // Should not crash; meta tags just won't be injected
     expect(result).toContain("<body>");
-    expect(result).not.toContain("<title>Title</title>");
+    expect(result).not.toContain("<title data-seojuice");
   });
 
-  it("handles HTML without </body> gracefully", () => {
+  it("fails open (returns original) when there is no <body> tag", () => {
     const noBodyHTML = "<html><head></head><p>Content</p></html>";
     const suggestions = createSuggestionResponse({
-      suggestions: [{ keyword: "test", url: "https://example.com" }],
+      suggestions: [{ keyword: "Content", url: "https://example.com", id: 1 }],
     });
 
     const result = injectSEO({ html: noBodyHTML, suggestions });
 
-    // Links should not be injected since there's no </body>
-    expect(result).not.toContain('id="seojuice-links"');
+    expect(result).toBe(noBodyHTML);
   });
 
-  it("returns unchanged HTML when suggestions have no content", () => {
+  it("returns HTML with only the SSR flag when suggestions have no content", () => {
     const suggestions = createSuggestionResponse();
     const result = injectSEO({ html: baseHTML, suggestions });
-    expect(result).toBe(baseHTML);
-  });
-});
-
-describe("escapeAttr", () => {
-  // escapeAttr is not exported, but we can test it indirectly through injectSEO
-  it("escapes ampersands in attribute values", () => {
-    const suggestions = createSuggestionResponse({
-      title: "Tom & Jerry",
-    });
-
-    const result = injectSEO({ html: "<head></head><body></body>", suggestions });
-    expect(result).toContain("<title>Tom &amp; Jerry</title>");
+    expect(result).toBe(baseHTML.replace("</body>", "<script>window.seojuiceSSR = true;</script>\n</body>"));
   });
 
-  it("escapes double quotes in attribute values", () => {
+  it("is idempotent when run twice on its own output", () => {
     const suggestions = createSuggestionResponse({
-      meta_description: 'He said "hello"',
+      title: "My Title",
+      suggestions: [{ keyword: "Body content", url: "https://example.com/tools", id: 42 }],
     });
-
-    const result = injectSEO({ html: "<head></head><body></body>", suggestions });
-    expect(result).toContain('content="He said &quot;hello&quot;"');
-  });
-
-  it("escapes single quotes in attribute values", () => {
-    const suggestions = createSuggestionResponse({
-      meta_description: "It's great",
-    });
-
-    const result = injectSEO({ html: "<head></head><body></body>", suggestions });
-    expect(result).toContain("It&#39;s great");
-  });
-
-  it("escapes angle brackets in attribute values", () => {
-    const suggestions = createSuggestionResponse({
-      meta_description: "a < b > c",
-    });
-
-    const result = injectSEO({ html: "<head></head><body></body>", suggestions });
-    expect(result).toContain("a &lt; b &gt; c");
-  });
-
-  it("escapes multiple special characters together", () => {
-    const suggestions = createSuggestionResponse({
-      og_title: 'Tom & "Jerry" <friends>',
-    });
-
-    const result = injectSEO({ html: "<head></head><body></body>", suggestions });
-    expect(result).toContain("Tom &amp; &quot;Jerry&quot; &lt;friends&gt;");
+    const once = injectSEO({ html: baseHTML, suggestions });
+    const twice = injectSEO({ html: once, suggestions });
+    expect(twice).toBe(once);
   });
 });

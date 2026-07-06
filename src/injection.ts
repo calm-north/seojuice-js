@@ -1,7 +1,26 @@
 import type { SuggestionResponse } from "./types/injection.js";
+import {
+  replaceMetaTags,
+  replaceImages,
+  injectInternalLinks,
+  applyContentDiffs,
+  replaceH1,
+  applyBrokenLinkFixes,
+  addManifestComment,
+  addSsrFlag,
+  validateApiResponse,
+} from "./transform.js";
+import type { Manifest } from "./transform.js";
 
 export type { SuggestionResponse } from "./types/injection.js";
-export type { SuggestionLink, SuggestionImage, AccessibilityConfig } from "./types/injection.js";
+export type {
+  SuggestionLink,
+  SuggestionImage,
+  SuggestionDiff,
+  BrokenLinkFix,
+  AccessibilityConfig,
+} from "./types/injection.js";
+export type { Manifest } from "./transform.js";
 
 export interface FetchSuggestionsOptions {
   baseURL?: string;
@@ -50,113 +69,68 @@ export interface InjectSEOOptions {
   injectMetaTags?: boolean;
   injectOGTags?: boolean;
   injectStructuredData?: boolean;
-}
-
-function escapeAttr(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  injectImages?: boolean;
+  injectDiffs?: boolean;
+  injectH1?: boolean;
+  injectBrokenLinks?: boolean;
 }
 
 /**
- * Sanitize a string for safe embedding inside a <script> tag.
- * Replaces all `<` with `\u003c` to prevent `</script>` breakouts.
- * This is the same approach used by Next.js and other frameworks.
+ * Full server-side parity injection, matching the SEOJuice edge Worker's
+ * `transformHTML` pipeline: meta/OG/schema, images, internal links, content
+ * diffs, h1, broken-link fixes, a manifest comment, and the SSR flag.
+ *
+ * C1 (`validateApiResponse`) gates the content-mutating transforms — an
+ * invalid/actionless payload skips straight to the manifest comment (a
+ * no-op when nothing changed) and the SSR flag, which are always applied,
+ * matching the Worker's own unconditional behavior.
+ *
+ * Fails open: any thrown error, an empty result, a result under half the
+ * original length, or a result missing a `<body>` tag all return the
+ * original HTML unchanged.
  */
-function htmlSafeJson(value: unknown): string {
-  return JSON.stringify(value).replace(/</g, "\\u003c");
-}
-
-/**
- * Sanitize structured data (JSON-LD) for safe embedding in <script>.
- * Validates the JSON and escapes dangerous sequences.
- */
-function safeJsonLd(raw: string): string {
-  try {
-    const parsed = JSON.parse(raw);
-    return JSON.stringify(parsed).replace(/</g, "\\u003c");
-  } catch {
-    return "{}";
-  }
-}
-
 export function injectSEO(options: InjectSEOOptions): string {
-  const {
-    html,
-    suggestions,
-    injectLinks = true,
-    injectMetaTags = true,
-    injectOGTags = true,
-    injectStructuredData = true,
-  } = options;
+  const { html, suggestions: s } = options;
 
-  let result = html;
-  const headTags: string[] = [];
+  const t = {
+    injectLinks: true,
+    injectMetaTags: true,
+    injectOGTags: true,
+    injectStructuredData: true,
+    injectImages: true,
+    injectDiffs: true,
+    injectH1: true,
+    injectBrokenLinks: true,
+    ...options,
+  };
 
-  if (injectMetaTags) {
-    if (suggestions.title) {
-      headTags.push(`<title>${escapeAttr(suggestions.title)}</title>`);
+  const original = html;
+  let out = html;
+  const manifest: Manifest = { cs: [], meta: [], img: 0, schema: 0, h1: 0 };
+
+  try {
+    if (validateApiResponse(s)) {
+      if (t.injectMetaTags || t.injectOGTags || t.injectStructuredData) {
+        out = replaceMetaTags(out, s, manifest, {
+          injectMetaTags: t.injectMetaTags,
+          injectOGTags: t.injectOGTags,
+          injectStructuredData: t.injectStructuredData,
+        });
+      }
+      if (t.injectImages) out = replaceImages(out, s, manifest);
+      if (t.injectLinks) out = injectInternalLinks(out, s, manifest);
+      if (t.injectDiffs) out = applyContentDiffs(out, s.diffs ?? [], manifest);
+      if (t.injectH1) out = replaceH1(out, s, manifest);
+      if (t.injectBrokenLinks) out = applyBrokenLinkFixes(out, s.broken_link_fixes ?? []);
     }
-    if (suggestions.meta_description) {
-      headTags.push(
-        `<meta name="description" content="${escapeAttr(suggestions.meta_description)}">`,
-      );
+    out = addManifestComment(out, manifest);
+    out = addSsrFlag(out);
+    if (!out || out.length < original.length * 0.5 || !/<body[\s>]/i.test(out)) {
+      out = original;
     }
-    if (suggestions.meta_keywords) {
-      headTags.push(
-        `<meta name="keywords" content="${escapeAttr(suggestions.meta_keywords)}">`,
-      );
-    }
+  } catch {
+    out = original;
   }
 
-  if (injectOGTags) {
-    if (suggestions.og_title) {
-      headTags.push(
-        `<meta property="og:title" content="${escapeAttr(suggestions.og_title)}">`,
-      );
-    }
-    if (suggestions.og_description) {
-      headTags.push(
-        `<meta property="og:description" content="${escapeAttr(suggestions.og_description)}">`,
-      );
-    }
-    if (suggestions.og_url) {
-      headTags.push(
-        `<meta property="og:url" content="${escapeAttr(suggestions.og_url)}">`,
-      );
-    }
-    if (suggestions.og_image) {
-      headTags.push(
-        `<meta property="og:image" content="${escapeAttr(suggestions.og_image)}">`,
-      );
-    }
-  }
-
-  if (injectStructuredData && suggestions.structured_data) {
-    headTags.push(
-      `<script type="application/ld+json">${safeJsonLd(suggestions.structured_data)}</script>`,
-    );
-  }
-
-  if (headTags.length > 0) {
-    const headInsert = headTags.join("\n");
-    const headCloseIdx = result.toLowerCase().indexOf("</head>");
-    if (headCloseIdx !== -1) {
-      result = result.slice(0, headCloseIdx) + headInsert + "\n" + result.slice(headCloseIdx);
-    }
-  }
-
-  if (injectLinks && suggestions.suggestions.length > 0) {
-    const linkData = htmlSafeJson(suggestions.suggestions);
-    const scriptTag = `<script type="application/json" id="seojuice-links">${linkData}</script>`;
-    const bodyCloseIdx = result.toLowerCase().indexOf("</body>");
-    if (bodyCloseIdx !== -1) {
-      result = result.slice(0, bodyCloseIdx) + scriptTag + "\n" + result.slice(bodyCloseIdx);
-    }
-  }
-
-  return result;
+  return out;
 }

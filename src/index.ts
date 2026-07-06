@@ -107,6 +107,8 @@ export type { SimilarPage, SimilarPagesResponse } from "./types/similar.js";
 export type {
   SuggestionLink,
   SuggestionImage,
+  SuggestionDiff,
+  BrokenLinkFix,
   AccessibilityConfig,
   SuggestionResponse,
 } from "./types/injection.js";

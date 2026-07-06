@@ -54,7 +54,19 @@ export const CLOSE_TAG_RE = /^<\/(a|script|style|title|h[1-6])>/i;
 export const BLOCK_CONTENT_RE = /^<(p|li|span|div|td|blockquote|dd|figcaption)[\s>]/i;
 export const BLOCK_CONTENT_CLOSE_RE = /^<\/(p|li|span|div|td|blockquote|dd|figcaption)>/i;
 
-export function replaceMetaTags(html: string, s: SuggestionResponse, manifest: Manifest): string {
+export interface MetaTagFlags {
+  injectMetaTags?: boolean;
+  injectOGTags?: boolean;
+  injectStructuredData?: boolean;
+}
+
+export function replaceMetaTags(
+  html: string,
+  s: SuggestionResponse,
+  manifest: Manifest,
+  flags: MetaTagFlags = {},
+): string {
+  const { injectMetaTags = true, injectOGTags = true, injectStructuredData = true } = flags;
   const {
     title,
     meta_description,
@@ -66,12 +78,12 @@ export function replaceMetaTags(html: string, s: SuggestionResponse, manifest: M
     structured_data,
   } = s;
 
-  if (title && !html.match(/<title[\s>]/i)) {
+  if (injectMetaTags && title && !html.match(/<title[\s>]/i)) {
     html = html.replace(/<\/head>/i, `<title data-seojuice="title">${escapeHtml(title)}</title>\n</head>`);
     manifest.meta.push("title");
   }
 
-  if (meta_description && !html.match(/<meta\s+name=["']description["']/i)) {
+  if (injectMetaTags && meta_description && !html.match(/<meta\s+name=["']description["']/i)) {
     html = html.replace(
       /<\/head>/i,
       `<meta name="description" content="${escapeHtml(meta_description)}" data-seojuice="meta-description">\n</head>`,
@@ -79,7 +91,7 @@ export function replaceMetaTags(html: string, s: SuggestionResponse, manifest: M
     manifest.meta.push("meta-description");
   }
 
-  if (meta_keywords && !html.match(/<meta\s+name=["']keywords["']/i)) {
+  if (injectMetaTags && meta_keywords && !html.match(/<meta\s+name=["']keywords["']/i)) {
     html = html.replace(
       /<\/head>/i,
       `<meta name="keywords" content="${escapeHtml(meta_keywords)}" data-seojuice="meta-keywords">\n</head>`,
@@ -87,7 +99,7 @@ export function replaceMetaTags(html: string, s: SuggestionResponse, manifest: M
     manifest.meta.push("meta-keywords");
   }
 
-  if (og_title && !html.match(/<meta\s+property=["']og:title["']/i)) {
+  if (injectOGTags && og_title && !html.match(/<meta\s+property=["']og:title["']/i)) {
     html = html.replace(
       /<\/head>/i,
       `<meta property="og:title" content="${escapeHtml(og_title)}" data-seojuice="og-title">\n</head>`,
@@ -95,7 +107,7 @@ export function replaceMetaTags(html: string, s: SuggestionResponse, manifest: M
     manifest.meta.push("og-title");
   }
 
-  if (og_description && !html.match(/<meta\s+property=["']og:description["']/i)) {
+  if (injectOGTags && og_description && !html.match(/<meta\s+property=["']og:description["']/i)) {
     html = html.replace(
       /<\/head>/i,
       `<meta property="og:description" content="${escapeHtml(og_description)}" data-seojuice="og-description">\n</head>`,
@@ -103,15 +115,15 @@ export function replaceMetaTags(html: string, s: SuggestionResponse, manifest: M
     manifest.meta.push("og-description");
   }
 
-  if (og_url && !html.match(/<meta\s+property=["']og:url["']/i)) {
+  if (injectOGTags && og_url && !html.match(/<meta\s+property=["']og:url["']/i)) {
     html = html.replace(/<\/head>/i, `<meta property="og:url" content="${escapeHtml(og_url)}">\n</head>`);
   }
 
-  if (og_image && !html.match(/<meta\s+property=["']og:image["']/i)) {
+  if (injectOGTags && og_image && !html.match(/<meta\s+property=["']og:image["']/i)) {
     html = html.replace(/<\/head>/i, `<meta property="og:image" content="${escapeHtml(og_image)}">\n</head>`);
   }
 
-  if (structured_data && structured_data !== "null") {
+  if (injectStructuredData && structured_data && structured_data !== "null") {
     try {
       const jsonString = JSON.parse(structured_data);
       const obj = JSON.parse(jsonString);
@@ -346,7 +358,34 @@ export function applyBrokenLinkFixes(html: string, fixes: BrokenLinkFix[]): stri
   return html;
 }
 
-// C1 — gates the whole pipeline; a false result means "inject nothing, return original HTML".
+export function addManifestComment(html: string, manifest: Manifest): string {
+  // Idempotency: only add comment if not already present.
+  if (html.includes("<!-- seojuice:")) return html;
+
+  const parts: string[] = [];
+
+  if (manifest.cs.length > 0) parts.push(`cs=[${manifest.cs.join(",")}]`);
+  if (manifest.meta.length > 0) parts.push(`meta=[${manifest.meta.join(",")}]`);
+  if (manifest.img > 0) parts.push(`img=${manifest.img}`);
+  if (manifest.schema) parts.push(`schema=1`);
+  if (manifest.h1) parts.push(`h1=1`);
+
+  if (parts.length === 0) return html;
+
+  const comment = `<!-- seojuice: ${parts.join(" ")} -->`;
+  return html.replace(/<\/body>/i, `${comment}\n</body>`);
+}
+
+export function addSsrFlag(html: string): string {
+  const script = "<script>window.seojuiceSSR = true;</script>";
+  if (!html.includes("window.seojuiceSSR")) {
+    html = html.replace(/<\/body>/i, `${script}\n</body>`);
+  }
+  return html;
+}
+
+// C1 — gates the content-mutating transforms; a false result means "inject nothing
+// beyond the inert manifest/SSR-flag steps, leave the content untouched".
 export function validateApiResponse(s: unknown): boolean {
   const obj = s as Record<string, unknown>;
   if (!s || typeof s !== "object" || Array.isArray(s)) return false;
@@ -358,10 +397,12 @@ export function validateApiResponse(s: unknown): boolean {
     (Array.isArray(obj.images) && obj.images.length) ||
     !!obj.structured_data ||
     !!obj.og_title ||
-    (Array.isArray(obj.diffs) && obj.diffs.length);
+    (Array.isArray(obj.diffs) && obj.diffs.length) ||
+    (Array.isArray(obj.broken_link_fixes) && obj.broken_link_fixes.length);
   if (!hasContent) return false;
   if ("suggestions" in obj && !Array.isArray(obj.suggestions)) return false;
   if ("images" in obj && !Array.isArray(obj.images)) return false;
   if ("diffs" in obj && !Array.isArray(obj.diffs)) return false;
+  if ("broken_link_fixes" in obj && !Array.isArray(obj.broken_link_fixes)) return false;
   return true;
 }
