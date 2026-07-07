@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.3.0
+
+### Fixed
+- **structured_data now injects as valid JSON-LD against the live payload.** The `/suggestions` API single-encodes `structured_data` (`json.dumps` once); the previous double-`JSON.parse` threw and silently dropped the schema. Now decodes single- or double-encoded defensively. (Supersedes the 1.2.0 note that described double-decoding as intentional.)
+- **CJK internal links at sentence end.** The `isAsian` link boundary now allows full-width Japanese punctuation (`。、！？）」』`), so a keyword ending a sentence (e.g. `投資信託。`) is linked.
+- **Content diffs on hydrated pages.** `applyContentDiffs` now ignores `<script>`/`<style>` regions when detecting ambiguous duplicates, so pages that serialize the original text into a hydration script (e.g. Next.js App Router `__next_f`) no longer skip the visible-body diff.
+
+### Security & robustness
+- **`applyBrokenLinkFixes` rewritten from a quadratic-backtracking regex to a linear tokenizer** — a ~2 MB page went from ~3 s of blocked event loop to under 10 ms.
+- **`createSeoMiddleware` fails open on any origin error** — a fetch/read failure returns the original response instead of a 500, and its origin self-fetch is re-entrancy-guarded.
+- **`injectSEO` / `injectResponse` never throw** — null/undefined/non-string input returns a string.
+- **Response bodies are size-capped** (suggestions 5 MB, HTML 10 MB) to prevent OOM on a hostile upstream.
+
 ## 1.2.0
 
 ### Added — full server-side injection parity
