@@ -19,11 +19,13 @@ export enum ChangeType {
   OgDescription = "og_description",
   OgImage = "og_image",
   TitleTag = "title_tag",
+  H1Tag = "h1_tag",
   StructuredData = "structured_data",
   ImageAlt = "image_alt",
   Accessibility = "accessibility",
   LocalSchema = "local_schema",
   NapFix = "nap_fix",
+  BrokenLinkFix = "broken_link_fix",
 }
 
 export enum AutomationMode {
@@ -37,6 +39,7 @@ export interface ChangeRecord {
   id: number;
   change_type: string;
   status: string;
+  risk_level: string | null;
   page_url: string | null;
   proposed_value: string | null;
   previous_value: string | null;
@@ -58,6 +61,9 @@ export interface ChangeRecord {
   verified_at: string | null;
   reverted_at: string | null;
   revert_reason: string | null;
+  batch_id: string | null;
+  batch_label: string | null;
+  edited_manually: boolean;
 }
 
 export interface ChangeListParams extends PaginationParams {
@@ -67,6 +73,7 @@ export interface ChangeListParams extends PaginationParams {
 }
 
 export interface ChangeStats {
+  total: number;
   by_status: Record<string, number>;
   by_type: Record<string, number>;
 }
@@ -76,6 +83,7 @@ export interface ChangeSettings {
   meta_tags_mode: string;
   og_tags_mode: string;
   title_tags_mode: string;
+  h1_tags_mode: string;
   structured_data_mode: string;
   image_alt_mode: string;
   accessibility_mode: string;
@@ -83,7 +91,7 @@ export interface ChangeSettings {
   gbp_review_reply_mode: string;
   max_changes_per_page_per_day: number;
   max_changes_per_day: number;
-  exclude_paths: string;
+  exclude_paths: string | null;
 }
 
 export interface BulkActionParams {

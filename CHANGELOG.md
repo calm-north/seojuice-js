@@ -13,6 +13,9 @@
 - **`injectSEO` / `injectResponse` never throw** — null/undefined/non-string input returns a string.
 - **Response bodies are size-capped** (suggestions 5 MB, HTML 10 MB) to prevent OOM on a hostile upstream.
 
+### Added
+- **`ChangeType` / `ChangeRecord` type completeness** — `ChangeType` gains `H1Tag` and `BrokenLinkFix`; `ChangeRecord` gains `risk_level`, `batch_id`, `batch_label`, `edited_manually` — matching the live API's change schema.
+
 ## 1.2.0
 
 ### Added — full server-side injection parity
