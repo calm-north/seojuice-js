@@ -20,6 +20,7 @@ npm install seojuice
 - [SEO Injection (Server-Side)](#seo-injection-server-side)
 - [Caching Strategies](#caching-strategies)
 - [Framework Integrations](#framework-integrations)
+  - [Next.js (native adapter)](#nextjs-native-adapter)
 - [Headless CMS Integrations](#headless-cms-integrations)
 - [Edge Runtime / Cloudflare Workers](#edge-runtime--cloudflare-workers)
 - [TypeScript](#typescript)
@@ -363,7 +364,7 @@ const enhanced = injectSEO({
 
 ## Caching Strategies
 
-Always cache SEO suggestions in production. The data changes infrequently (hourly at most) and caching eliminates network latency.
+Always cache SEO suggestions in production. The data changes infrequently (hourly at most) and caching reduces network latency.
 
 ### In-Memory Cache
 
@@ -421,6 +422,87 @@ async function getCachedSuggestions(url: string): Promise<SuggestionResponse> {
 ```
 
 ## Framework Integrations
+
+### Next.js (native adapter)
+
+`seojuice/next` is the recommended path for Next.js — a batteries-included
+middleware plus the framework-agnostic pieces it's built on. It ships full
+server-side injection parity (internal links, alt-text, content diffs, h1,
+broken-link fixes), not just `<head>` tags.
+
+```typescript
+// middleware.ts
+import { createSeoMiddleware } from "seojuice/next";
+
+export const middleware = createSeoMiddleware({ beacon: true });
+
+export const config = {
+  matcher: ["/blog/:path*", "/docs/:path*"],
+};
+```
+
+`createSeoMiddleware(options?)` returns a Next.js middleware function:
+
+- `options.apiBase` — API origin, defaults to `https://smart.seojuice.io`.
+- `options.beacon` — fire-and-forget `/views` beacon (see below). Defaults to `false`.
+
+Standard Next middleware runs *before* the route and cannot read the
+rendered page body via `NextResponse.next()`. `createSeoMiddleware` works
+around this with the origin-fetch pattern: it re-fetches the request
+(`fetch(request)`) to obtain the already-rendered HTML, transforms it, and
+returns a new `NextResponse`. This is correct for SSR/static routes at the
+cost of a second fetch. It fails open — any origin error (timeout,
+non-HTML response, oversized body) returns the original response
+untouched, never a 500. For `<head>` tags only, in the App Router, prefer
+`generateMetadata` (see [Next.js — App Router](#nextjs--app-router)
+below) — it has no double-fetch cost.
+
+If you run a custom server or edge runtime where the rendered HTML is
+already in hand, call the underlying primitive directly instead of going
+through middleware:
+
+```typescript
+import { injectResponse } from "seojuice/injection";
+
+const enhanced = await injectResponse({
+  html, // rendered HTML string
+  url: request.url,
+  apiBase: "https://smart.seojuice.io", // optional
+});
+```
+
+`injectResponse(opts)` fetches suggestions for `opts.url` and runs
+`injectSEO` against `opts.html`. It fails open — any fetch/parse error
+returns `opts.html` unchanged, and non-string `html` returns an empty
+string rather than throwing. It lives in `seojuice/injection` (not
+`seojuice/next`) since it has no Next.js-specific dependency —
+`createSeoMiddleware` calls it internally, and any custom server or edge
+runtime can call it directly the same way.
+
+`options.beacon: true` on `createSeoMiddleware` (or the standalone
+`sendViewBeacon`) reports each request's `url`/`user_agent`/`referrer` to
+`/views` server-side, so JS-less AI crawlers (GPTBot, ClaudeBot, …) that
+never execute the client snippet still get captured. No cookies or body
+are sent, and delivery errors are swallowed — it never blocks or delays
+the response:
+
+```typescript
+import { sendViewBeacon } from "seojuice/next";
+
+void sendViewBeacon(
+  "https://smart.seojuice.io",
+  request.url,
+  request.headers.get("user-agent") || "",
+  request.headers.get("referer") || "",
+);
+```
+
+See `examples/nextjs-middleware.ts` and `examples/nextjs-app-router.ts`
+for complete, runnable versions of both patterns.
+
+The lower-level `injectSEO`/`fetchSuggestions` primitives from
+`seojuice/injection` (used below) still work standalone if you only need
+`<head>` tag injection or want to manage caching/fetching yourself.
 
 ### Next.js — App Router
 
@@ -500,7 +582,15 @@ export const getServerSideProps: GetServerSideProps = async ({ params, res }) =>
 };
 ```
 
-### Next.js Middleware (HTML Injection)
+### Next.js Middleware (HTML Injection, hand-rolled)
+
+For Next.js, prefer `createSeoMiddleware` from
+[`seojuice/next`](#nextjs-native-adapter) — it handles the origin-fetch
+pattern (`NextResponse.next()` alone cannot read the rendered body),
+fails open on origin errors, and applies full injection parity, not just
+`<head>` tags. The example below is illustrative of the underlying
+fetch/cache shape and works for any framework that gives you a
+`Request`/`Response` pair.
 
 ```typescript
 // middleware.ts
