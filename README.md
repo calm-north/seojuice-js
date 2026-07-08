@@ -241,19 +241,14 @@ await client.changes.updateSettings("example.com", {
 
 ### Webhooks
 
-SEOJuice sends webhook events when changes transition states. Verify signatures with HMAC-SHA256:
+SEOJuice sends webhook events when changes transition states. Verify signatures with `verifyWebhookSignature` (HMAC-SHA256, constant-time, never throws):
 
 ```typescript
-import crypto from "node:crypto";
-
-function verifySignature(body: string, signature: string, secret: string): boolean {
-  const expected = crypto.createHmac("sha256", secret).update(body).digest("hex");
-  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
-}
+import { verifyWebhookSignature } from "seojuice";
 
 // In your webhook handler:
 const sig = req.headers["x-seojuice-signature"];
-if (!verifySignature(rawBody, sig, process.env.SEOJUICE_WEBHOOK_SECRET!)) {
+if (!verifyWebhookSignature(process.env.SEOJUICE_WEBHOOK_SECRET!, rawBody, sig)) {
   return res.status(401).json({ error: "Invalid signature" });
 }
 
@@ -431,17 +426,19 @@ server-side injection parity (internal links, alt-text, content diffs, h1,
 broken-link fixes), not just `<head>` tags.
 
 ```typescript
-// middleware.ts
+// proxy.ts (Next.js 16+)
 import { createSeoMiddleware } from "seojuice/next";
 
-export const middleware = createSeoMiddleware({ beacon: true });
+export const proxy = createSeoMiddleware({ beacon: true });
 
 export const config = {
   matcher: ["/blog/:path*", "/docs/:path*"],
 };
 ```
 
-`createSeoMiddleware(options?)` returns a Next.js middleware function:
+On Next.js 13–15, name the file `middleware.ts` and export `middleware` instead — same handler.
+
+`createSeoMiddleware(options?)` returns a Next.js middleware/proxy function:
 
 - `options.apiBase` — API origin, defaults to `https://smart.seojuice.io`.
 - `options.beacon` — fire-and-forget `/views` beacon (see below). Defaults to `false`.

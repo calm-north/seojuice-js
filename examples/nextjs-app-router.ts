@@ -7,6 +7,11 @@
  * generateMetadata handles <head>; for full body injection (links/alt/diffs)
  * use the middleware example (`examples/nextjs-middleware.ts`, or
  * `createSeoMiddleware` from `seojuice/next`).
+ *
+ * On Next.js 16+, `createSeoMiddleware` is exported from `proxy.ts` as
+ * `proxy` instead of from `middleware.ts` as `middleware` — see the
+ * README's Next.js section for the exact snippet. This page component is
+ * unaffected either way.
  */
 import { fetchSuggestions } from "seojuice/injection";
 import type { SuggestionResponse } from "seojuice/injection";

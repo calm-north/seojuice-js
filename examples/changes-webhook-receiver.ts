@@ -9,9 +9,8 @@
  *   2. Set SEOJUICE_API_KEY for API callbacks
  *   3. Configure the webhook URL in SEOJuice: https://yoursite.com/webhooks/seojuice
  */
-import crypto from "node:crypto";
 import express from "express";
-import { SEOJuice } from "seojuice";
+import { SEOJuice, verifyWebhookSignature } from "seojuice";
 import type { ChangeWebhookPayload, ChangeRecord } from "seojuice";
 
 const app = express();
@@ -20,25 +19,6 @@ const WEBHOOK_SECRET = process.env.SEOJUICE_WEBHOOK_SECRET!;
 const client = new SEOJuice({
   apiKey: process.env.SEOJUICE_API_KEY!,
 });
-
-// --- Signature verification ---
-
-function verifySignature(
-  payload: string,
-  signature: string | undefined,
-): boolean {
-  if (!signature) return false;
-
-  const expected = crypto
-    .createHmac("sha256", WEBHOOK_SECRET)
-    .update(payload)
-    .digest("hex");
-
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expected),
-  );
-}
 
 // --- Event handlers (run async after responding) ---
 
@@ -129,7 +109,7 @@ app.post(
       | undefined;
 
     // Verify HMAC signature
-    if (!verifySignature(rawBody, signature)) {
+    if (!signature || !verifyWebhookSignature(WEBHOOK_SECRET, rawBody, signature)) {
       console.warn("[webhook] Invalid signature, rejecting");
       res.status(401).json({ error: "Invalid signature" });
       return;

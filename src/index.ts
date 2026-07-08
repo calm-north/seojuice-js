@@ -13,6 +13,8 @@ export type { APIErrorCode } from "./errors.js";
 export { PaginatedResponse, autoPaginate } from "./pagination.js";
 export type { PageFetcher, AutoPaginateParams } from "./pagination.js";
 
+export { verifyWebhookSignature } from "./webhooks.js";
+
 // Common types
 export type { Pagination, PaginatedResult, PaginationParams, Period } from "./types/common.js";
 

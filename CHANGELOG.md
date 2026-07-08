@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0
+
+### Added
+- **`verifyWebhookSignature(secret, body, signature)`** — HMAC-SHA256 webhook signature verification, exported from the top-level package. Constant-time comparison, never throws on a malformed/length-mismatched signature. Parity with the Python SDK's `verify_webhook_signature`.
+
+### Docs
+- Documented the Next.js 16+ `proxy.ts` convention (`middleware.ts` → `proxy.ts`, `export const middleware` → `export const proxy`) for `createSeoMiddleware`. Next.js 13–15 still use `middleware.ts` / `middleware` — same handler either way.
+
 ## 1.3.0
 
 ### Fixed

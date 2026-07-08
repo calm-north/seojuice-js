@@ -13,6 +13,10 @@
  * origin-fetch pattern needed to actually read the rendered HTML — see
  * `seojuice/next`'s doc comment for why `NextResponse.next()` alone cannot),
  * use `createSeoMiddleware` from `seojuice/next` instead of hand-rolling this.
+ *
+ * File/export naming: this example uses the Next.js 13–15 `middleware.ts` /
+ * `export const middleware` convention. On Next.js 16+, rename the file to
+ * `proxy.ts` and export `proxy` instead — the handler itself is unchanged.
  */
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
