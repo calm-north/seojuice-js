@@ -27,8 +27,8 @@ async function getSeoOverview(domain: string) {
 
   return {
     totalPages: summary.total_pages,
-    indexedPages: summary.indexed_pages,
-    avgScore: summary.avg_seo_score,
+    seoScore: summary.seo_score,
+    aisoScore: summary.aiso_score,
     trends: summary.trends,
   };
 }
