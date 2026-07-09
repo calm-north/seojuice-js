@@ -321,7 +321,17 @@ try {
 }
 ```
 
-All errors extend `SEOJuiceError` and include `code`, `status`, and `requestId`.
+All errors extend `SEOJuiceError` and include `code`, `status`, and `requestId`. Network failures surface as `NetworkError` (`code: "network_error"`) and timeouts as `TimeoutError` (`code: "timeout"`) — both `status: 0`, since no HTTP response was received.
+
+### Retries
+
+Retries are off by default. Opt in with `maxRetries` on the client:
+
+```typescript
+const client = new SEOJuice({ apiKey: "...", maxRetries: 2 });
+```
+
+Retries apply only to idempotent GET requests, and only for `RateLimitError` (429) and `NetworkError` — never for 401/404/other 4xx responses. A `Retry-After` header is honored when present; otherwise the SDK backs off exponentially with jitter.
 
 ## SEO Injection (Server-Side)
 
@@ -494,7 +504,7 @@ void sendViewBeacon(
 );
 ```
 
-See `examples/nextjs-middleware.ts` and `examples/nextjs-app-router.ts`
+See `examples/nextjs-middleware.ts` and `examples/nextjs-app-router.tsx`
 for complete, runnable versions of both patterns.
 
 The lower-level `injectSEO`/`fetchSuggestions` primitives from
@@ -539,7 +549,7 @@ export default async function BlogPost({ params }: Props) {
           dangerouslySetInnerHTML={{ __html: seo.structured_data }}
         />
       )}
-      {seo.suggestions.length > 0 && (
+      {(seo.suggestions?.length ?? 0) > 0 && (
         <script
           type="application/json"
           id="seojuice-links"
@@ -1274,7 +1284,7 @@ import { ChangeStatus, ChangeType, AutomationMode } from "seojuice";
 
 - **API keys** are sent via the `Authorization: Bearer` header over HTTPS only. Never expose keys in client-side code.
 - **HTML injection** uses attribute escaping (`&`, `"`, `'`, `<`, `>`) to prevent XSS when injecting meta tags and OG tags.
-- **Structured data** from the API is injected as-is into a `<script type="application/ld+json">` tag. The API returns pre-sanitized JSON-LD.
+- **Structured data** from the API is escaped before injection: every `<` in the serialized JSON-LD is replaced with `<` before it goes into the `<script type="application/ld+json">` tag, so a `</script>` in any value can't break out of the tag — safe even against a compromised upstream.
 - **No `eval()` or `Function()`** — the SDK never evaluates dynamic code.
 - **No file system access** — the SDK works in sandboxed environments (Workers, edge runtimes).
 - **Timeouts** are enforced on all network requests to prevent hanging connections.
