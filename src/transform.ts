@@ -136,7 +136,7 @@ export function replaceMetaTags(
       if (!html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>/i)) {
         html = html.replace(
           /<\/head>/i,
-          `<script type="application/ld+json" data-seojuice="schema">${JSON.stringify(obj)}</script>\n</head>`,
+          `<script type="application/ld+json" data-seojuice="schema">${JSON.stringify(obj).replace(/</g, "\\u003c")}</script>\n</head>`,
         );
         manifest.schema = 1;
       }

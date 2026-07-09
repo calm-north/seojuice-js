@@ -84,6 +84,27 @@ describe("replaceMetaTags / replaceH1", () => {
     const out = replaceH1("<h1 class='t'>old</h1>", S({ h1: "New" }), M());
     expect(out).toBe('<h1 class=\'t\' data-seojuice="h1">New</h1>');
   });
+  it("neutralizes a </script> breakout inside structured_data (XSS) and stays valid JSON-LD", () => {
+    const inner = {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      headline: '</script><img src=x onerror=alert(1)>',
+    };
+    const payload = S({ structured_data: JSON.stringify(inner) });
+    const out = replaceMetaTags("<head></head>", payload, M());
+
+    // Grab the injected ld+json block.
+    const m = out.match(
+      /<script type="application\/ld\+json" data-seojuice="schema">([\s\S]*?)<\/script>/,
+    );
+    expect(m).toBeTruthy();
+    const block = m![1];
+
+    // No literal breakout survives inside the block.
+    expect(block).not.toContain("</script>");
+    // The escape round-trips: parsing the block yields the original object.
+    expect(JSON.parse(block)).toEqual(inner);
+  });
 });
 
 describe("replaceImages", () => {
