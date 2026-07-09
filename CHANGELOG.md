@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.4.1
+
+### Security
+- **JSON-LD is now escaped before `<script>` injection.** `replaceMetaTags` escapes every `<` in the serialized structured data as `<`, so a `</script>` in any API-supplied string value can no longer break out of the `application/ld+json` tag. This neutralizes a stored-XSS vector regardless of upstream trust; output stays valid JSON-LD (round-trips identically).
+
+### Fixed
+- **Transport and timeout failures now enter the typed error hierarchy.** A dead endpoint throws `NetworkError` (`code: "network_error"`) and a hung request throws `TimeoutError` (`code: "timeout"`), both `extends SEOJuiceError` with `status: 0` — the documented `code`/`status`/`requestId` contract now holds on network/timeout paths, not just HTTP error responses.
+- **`verifyWebhookSignature` honors its "never throws" contract** — a null/undefined/non-string `secret` or `body` (e.g. a `rawBody` already consumed by a body-parser) returns `false` instead of throwing a raw `TypeError`.
+- **`new SEOJuice({ apiKey: "" })` and `new SEOJuice()` fail fast** with a clear `SEOJuiceError("apiKey is required")` instead of deferring to a 401 or throwing a cryptic destructuring error.
+- **`seojuice/next` loads under bare Node ESM** — imports `next/server.js` by file path (`next` ships no exports map), fixing `ERR_MODULE_NOT_FOUND` on edge/Deno/unit-test usage.
+
+### Added
+- **Opt-in `maxRetries`** on the client with exponential-jitter backoff that honors `Retry-After` on idempotent (GET) requests. Off by default (`maxRetries: 0`).
+
+### Examples & docs
+- Fixed `intelligence-api` field drift (`total_pages` / `seo_score`), renamed the two JSX examples to `.tsx`, and added an `examples/tsconfig.json` `tsc --noEmit` gate so example rot and README↔code drift fail CI.
+- Guarded optional `seo.suggestions?.length` in the App Router example and README.
+- `examples/` is now shipped in the npm tarball.
+
 ## 1.4.0
 
 ### Added
