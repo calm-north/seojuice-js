@@ -42,6 +42,7 @@
   "sideEffects": false,
   "files": [
     "dist",
+    "examples",
     "LICENSE",
     "CHANGELOG.md"
   ],
@@ -55,7 +56,8 @@
     "typecheck:examples": "tsc --noEmit -p examples/tsconfig.json",
     "test": "vitest run",
     "clean": "rm -rf dist",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "smoke:next-esm": "node --input-type=module -e \"await import('./dist/next.mjs'); console.log('next.mjs loaded under bare ESM')\""
   },
   "devDependencies": {
     "@types/node": "20.19.33",
