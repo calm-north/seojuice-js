@@ -57,4 +57,25 @@ describe("verifyWebhookSignature", () => {
     const signature = sign(SECRET, BODY);
     expect(verifyWebhookSignature(SECRET, buf, signature)).toBe(true);
   });
+
+  it("returns false (never throws) when the body is null", () => {
+    const signature = sign(SECRET, BODY);
+    expect(
+      verifyWebhookSignature(SECRET, null as unknown as string, signature),
+    ).toBe(false);
+  });
+
+  it("returns false (never throws) when the secret is null", () => {
+    const signature = sign(SECRET, BODY);
+    expect(
+      verifyWebhookSignature(null as unknown as string, BODY, signature),
+    ).toBe(false);
+  });
+
+  it("returns false (never throws) when the body is a non-string, non-Buffer value", () => {
+    const signature = sign(SECRET, BODY);
+    expect(
+      verifyWebhookSignature(SECRET, { foo: "bar" } as unknown as string, signature),
+    ).toBe(false);
+  });
 });
