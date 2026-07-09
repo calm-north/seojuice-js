@@ -1,5 +1,8 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { describe, it, expect, vi } from "vitest";
-import { NextResponse } from "next/server";
+import { NextResponse } from "next/server.js";
 import { sendViewBeacon, createSeoMiddleware } from "../src/next.js";
 
 describe("sendViewBeacon", () => {
@@ -178,5 +181,14 @@ describe("createSeoMiddleware", () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+});
+
+describe("seojuice/next bare-ESM import", () => {
+  it("imports next/server via the resolvable file path (next has no exports map)", () => {
+    const srcPath = fileURLToPath(new URL("../src/next.ts", import.meta.url));
+    const source = readFileSync(srcPath, "utf8");
+    expect(source).toContain('from "next/server.js"');
+    expect(source).not.toMatch(/from "next\/server"(?!\.)/);
   });
 });
