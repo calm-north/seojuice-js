@@ -70,7 +70,7 @@ export default async function BlogPost({ params }: PageProps) {
       )}
 
       {/* Internal link suggestions as JSON for client-side injection */}
-      {seo.suggestions.length > 0 && (
+      {(seo.suggestions?.length ?? 0) > 0 && (
         <script
           type="application/json"
           id="seojuice-links"
