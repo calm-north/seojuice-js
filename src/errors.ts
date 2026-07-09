@@ -2,7 +2,9 @@ export type APIErrorCode =
   | "authentication_error"
   | "not_found"
   | "rate_limit_exceeded"
-  | "api_error";
+  | "api_error"
+  | "timeout"
+  | "network_error";
 
 export class SEOJuiceError extends Error {
   readonly code: APIErrorCode;
@@ -70,5 +72,26 @@ export class APIError extends SEOJuiceError {
     super(message, "api_error", status, requestId);
     this.name = "APIError";
     this.body = body;
+  }
+}
+
+export class TimeoutError extends SEOJuiceError {
+  constructor(message: string, requestId: string | null = null) {
+    super(message, "timeout", 0, requestId);
+    this.name = "TimeoutError";
+  }
+}
+
+export class NetworkError extends SEOJuiceError {
+  readonly cause: unknown;
+
+  constructor(
+    message: string,
+    cause: unknown = null,
+    requestId: string | null = null,
+  ) {
+    super(message, "network_error", 0, requestId);
+    this.name = "NetworkError";
+    this.cause = cause;
   }
 }

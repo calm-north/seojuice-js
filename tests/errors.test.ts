@@ -5,6 +5,8 @@ import {
   NotFoundError,
   RateLimitError,
   APIError,
+  TimeoutError,
+  NetworkError,
 } from "../src/errors.js";
 
 describe("SEOJuiceError", () => {
@@ -151,5 +153,38 @@ describe("APIError", () => {
   it("stores requestId when provided", () => {
     const error = new APIError("fail", 500, null, "req-api");
     expect(error.requestId).toBe("req-api");
+  });
+});
+
+describe("TimeoutError", () => {
+  it("sets code to timeout, status to 0, and is a SEOJuiceError", () => {
+    const error = new TimeoutError("Request timed out after 30000ms");
+    expect(error.code).toBe("timeout");
+    expect(error.status).toBe(0);
+    expect(error.name).toBe("TimeoutError");
+    expect(error).toBeInstanceOf(SEOJuiceError);
+    expect(error).toBeInstanceOf(Error);
+  });
+
+  it("stores requestId when provided", () => {
+    const error = new TimeoutError("timed out", "req-timeout");
+    expect(error.requestId).toBe("req-timeout");
+  });
+});
+
+describe("NetworkError", () => {
+  it("sets code to network_error, status to 0, and is a SEOJuiceError", () => {
+    const error = new NetworkError("fetch failed");
+    expect(error.code).toBe("network_error");
+    expect(error.status).toBe(0);
+    expect(error.name).toBe("NetworkError");
+    expect(error).toBeInstanceOf(SEOJuiceError);
+    expect(error).toBeInstanceOf(Error);
+  });
+
+  it("preserves the underlying cause", () => {
+    const original = new TypeError("fetch failed");
+    const error = new NetworkError("fetch failed", original);
+    expect(error.cause).toBe(original);
   });
 });
