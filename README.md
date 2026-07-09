@@ -80,10 +80,13 @@ const client = new SEOJuice({
   baseURL: "https://...",     // Default: https://seojuice.com/api/v2
   timeout: 30_000,            // Default: 30s (milliseconds)
   fetch: customFetch,         // Custom fetch implementation
+  maxRetries: 0,              // Default: 0 (off) — see Retries below
 });
 ```
 
-**Important:** Never hardcode API keys. Use environment variables (`process.env.SEOJUICE_API_KEY`) or a secret manager.
+`apiKey` is required. An empty or missing key throws `SEOJuiceError("apiKey is required")` from the constructor, not a 401 later or a cryptic destructuring error.
+
+Never hardcode API keys. Use environment variables (`process.env.SEOJUICE_API_KEY`) or a secret manager.
 
 ## API Reference
 
@@ -304,6 +307,8 @@ import {
   NotFoundError,
   RateLimitError,
   APIError,
+  NetworkError,
+  TimeoutError,
 } from "seojuice";
 
 try {
@@ -315,6 +320,10 @@ try {
     console.log(error.resource); // the requested path
   } else if (error instanceof RateLimitError) {
     console.log(error.retryAfter); // seconds to wait (or null)
+  } else if (error instanceof NetworkError) {
+    // DNS failure, ECONNREFUSED, dropped connection — status 0
+  } else if (error instanceof TimeoutError) {
+    // request exceeded the client timeout — status 0
   } else if (error instanceof APIError) {
     console.log(error.status, error.body);
   }
@@ -352,7 +361,7 @@ const suggestions = await fetchSuggestions("https://example.com/blog/my-post", {
 
 ### `injectSEO(options)`
 
-Transforms HTML by injecting meta tags, OG tags, structured data, and link data.
+Transforms HTML: meta/OG tags and JSON-LD in `<head>`, internal links as real `<a>` elements in the body, image alt-text, content diffs, h1, and broken-link fixes. Fails open — returns the original HTML on any error.
 
 ```typescript
 import { injectSEO } from "seojuice/injection";
@@ -360,7 +369,7 @@ import { injectSEO } from "seojuice/injection";
 const enhanced = injectSEO({
   html: originalHtml,
   suggestions,
-  injectLinks: true,           // Link suggestions as JSON in <body>
+  injectLinks: true,           // internal links as real <a> elements in <body>
   injectMetaTags: true,        // <title>, description, keywords in <head>
   injectOGTags: true,          // og:title, og:description, etc. in <head>
   injectStructuredData: true,  // JSON-LD in <head>
@@ -430,8 +439,8 @@ async function getCachedSuggestions(url: string): Promise<SuggestionResponse> {
 
 ### Next.js (native adapter)
 
-`seojuice/next` is the recommended path for Next.js — a batteries-included
-middleware plus the framework-agnostic pieces it's built on. It ships full
+`seojuice/next` is the recommended path for Next.js — a ready-to-mount
+middleware plus the framework-agnostic pieces it's built on. It applies full
 server-side injection parity (internal links, alt-text, content diffs, h1,
 broken-link fixes), not just `<head>` tags.
 
