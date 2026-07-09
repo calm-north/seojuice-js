@@ -1,3 +1,4 @@
+import { SEOJuiceError } from "./errors.js";
 import { HttpClient } from "./http.js";
 import { AccessibilityResource } from "./resources/accessibility.js";
 import { AISOResource } from "./resources/aiso.js";
@@ -45,9 +46,18 @@ export class SEOJuice {
   readonly gbp: GBPResource;
 
   constructor(config: SEOJuiceConfig) {
+    const apiKey = config?.apiKey;
+    if (typeof apiKey !== "string" || apiKey.length === 0) {
+      throw new SEOJuiceError(
+        "apiKey is required — pass it to `new SEOJuice({ apiKey })`",
+        "authentication_error",
+        0,
+      );
+    }
+
     const http = new HttpClient({
       baseURL: config.baseURL ?? DEFAULT_BASE_URL,
-      apiKey: config.apiKey,
+      apiKey,
       timeout: config.timeout ?? DEFAULT_TIMEOUT,
       fetch: config.fetch ?? globalThis.fetch.bind(globalThis),
     });

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { SEOJuice } from "../src/client.js";
+import { SEOJuiceError } from "../src/errors.js";
 import { WebsitesResource } from "../src/resources/websites.js";
 import { PagesResource } from "../src/resources/pages.js";
 import { IntelligenceResource } from "../src/resources/intelligence.js";
@@ -93,6 +94,26 @@ describe("SEOJuice client", () => {
       expect(client).toBeDefined();
     } finally {
       globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("throws SEOJuiceError when apiKey is an empty string", () => {
+    expect(() => new SEOJuice({ apiKey: "" })).toThrow(SEOJuiceError);
+  });
+
+  it("throws SEOJuiceError (not a cryptic TypeError) when config is missing entirely", () => {
+    // Simulates `new SEOJuice()` — no config object at all.
+    expect(() => new SEOJuice(undefined as unknown as { apiKey: string })).toThrow(
+      SEOJuiceError,
+    );
+  });
+
+  it("mentions apiKey in the thrown message", () => {
+    try {
+      new SEOJuice({ apiKey: "" });
+      expect.fail("Expected a throw");
+    } catch (err) {
+      expect((err as SEOJuiceError).message).toContain("apiKey");
     }
   });
 });
