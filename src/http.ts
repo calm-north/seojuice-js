@@ -13,6 +13,7 @@ export interface HttpClientConfig {
   apiKey: string;
   timeout: number;
   fetch: typeof globalThis.fetch;
+  maxRetries?: number;
 }
 
 export interface RequestOptions {
@@ -37,15 +38,53 @@ export class HttpClient {
   private readonly apiKey: string;
   private readonly timeout: number;
   private readonly fetch: typeof globalThis.fetch;
+  private readonly maxRetries: number;
 
   constructor(config: HttpClientConfig) {
     this.baseURL = config.baseURL.replace(/\/+$/, "");
     this.apiKey = config.apiKey;
     this.timeout = config.timeout;
     this.fetch = config.fetch;
+    this.maxRetries = config.maxRetries ?? 0;
   }
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+    const method = (options.method ?? "GET").toUpperCase();
+    const idempotent = method === "GET";
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      try {
+        return await this.attempt<T>(path, options, method);
+      } catch (err) {
+        lastError = err;
+        const canRetry =
+          idempotent &&
+          attempt < this.maxRetries &&
+          (err instanceof RateLimitError || err instanceof NetworkError);
+        if (!canRetry) throw err;
+        const delayMs = this.retryDelayMs(err, attempt);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+
+    throw lastError;
+  }
+
+  private retryDelayMs(err: unknown, attempt: number): number {
+    if (err instanceof RateLimitError && err.retryAfter != null) {
+      return err.retryAfter * 1000;
+    }
+    const base = 250;
+    const backoff = base * 2 ** attempt;
+    return backoff + Math.floor(Math.random() * base);
+  }
+
+  private async attempt<T>(
+    path: string,
+    options: RequestOptions,
+    method: string,
+  ): Promise<T> {
     const url = this.buildURL(path, options.query);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeout);
@@ -71,7 +110,7 @@ export class HttpClient {
 
     try {
       const response = await this.fetch(url.toString(), {
-        method: options.method ?? "GET",
+        method,
         headers,
         body: options.body ? JSON.stringify(options.body) : undefined,
         signal,

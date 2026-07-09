@@ -22,6 +22,7 @@ export interface SEOJuiceConfig {
   baseURL?: string;
   timeout?: number;
   fetch?: typeof globalThis.fetch;
+  maxRetries?: number;
 }
 
 const DEFAULT_BASE_URL = "https://seojuice.com/api/v2";
@@ -60,6 +61,7 @@ export class SEOJuice {
       apiKey,
       timeout: config.timeout ?? DEFAULT_TIMEOUT,
       fetch: config.fetch ?? globalThis.fetch.bind(globalThis),
+      maxRetries: config.maxRetries,
     });
 
     this.websites = new WebsitesResource(http);

@@ -505,4 +505,64 @@ describe("HttpClient", () => {
       await expect(client.request("/test/")).rejects.toThrow(AuthenticationError);
     });
   });
+
+  describe("retries", () => {
+    it("retries a 429 once (honoring Retry-After) then resolves", async () => {
+      vi.useFakeTimers();
+      const rateLimited = createMockResponse({
+        ok: false,
+        status: 429,
+        body: { detail: "slow down" },
+        headers: { "retry-after": "1" },
+      });
+      const success = createMockResponse({ body: { ok: true } });
+      mockFetch
+        .mockResolvedValueOnce(rateLimited)
+        .mockResolvedValueOnce(success);
+
+      const client = new HttpClient({
+        baseURL: "https://api.example.com/v2",
+        apiKey: "k",
+        timeout: 5000,
+        fetch: mockFetch as typeof globalThis.fetch,
+        maxRetries: 2,
+      });
+
+      const promise = client.request<{ ok: boolean }>("/test/");
+      await vi.advanceTimersByTimeAsync(1000);
+      const result = await promise;
+
+      expect(result).toEqual({ ok: true });
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      vi.useRealTimers();
+    });
+
+    it("does not retry when maxRetries defaults to 0", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ ok: false, status: 429, body: { detail: "no" } }),
+      );
+      const client = createClient(mockFetch);
+
+      await expect(client.request("/test/")).rejects.toThrow(RateLimitError);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not retry a non-idempotent POST", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ ok: false, status: 429, body: { detail: "no" } }),
+      );
+      const client = new HttpClient({
+        baseURL: "https://api.example.com/v2",
+        apiKey: "k",
+        timeout: 5000,
+        fetch: mockFetch as typeof globalThis.fetch,
+        maxRetries: 3,
+      });
+
+      await expect(
+        client.request("/test/", { method: "POST", body: { x: 1 } }),
+      ).rejects.toThrow(RateLimitError);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+  });
 });
