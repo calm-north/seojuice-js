@@ -24,6 +24,7 @@
     "changes-management.ts",
     "changes-nextjs-ssg.tsx",
     "changes-react-dashboard.tsx",
+    "changes-remix.ts",
     "changes-wordpress-headless.ts",
     "intelligence-api.ts",
     "nextjs-app-router.tsx",
@@ -32,7 +33,6 @@
   "exclude": [
     "changes-contentful.ts",
     "changes-gatsby.ts",
-    "changes-remix.ts",
     "changes-sanity.ts",
     "changes-webhook-receiver.ts",
     "cloudflare-worker.ts",

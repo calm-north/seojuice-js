@@ -1,4 +1,3 @@
-// Illustrative integration — requires @remix-run/node: `npm i @remix-run/node`. Not type-checked in CI.
 /**
  * Remix — Loader, action, and meta for applying SEO changes.
  *
