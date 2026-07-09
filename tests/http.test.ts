@@ -5,6 +5,9 @@ import {
   NotFoundError,
   RateLimitError,
   APIError,
+  SEOJuiceError,
+  TimeoutError,
+  NetworkError,
 } from "../src/errors.js";
 
 function createMockResponse(options: {
@@ -461,6 +464,45 @@ describe("HttpClient", () => {
       } catch (err) {
         expect((err as AuthenticationError).requestId).toBe("req-12345");
       }
+    });
+  });
+
+  describe("transport failures", () => {
+    it("wraps a raw fetch rejection as NetworkError (instanceof SEOJuiceError, code network_error)", async () => {
+      mockFetch.mockRejectedValue(new TypeError("fetch failed"));
+      const client = createClient(mockFetch);
+
+      try {
+        await client.request("/test/");
+        expect.fail("Expected NetworkError to be thrown");
+      } catch (err) {
+        expect(err).toBeInstanceOf(SEOJuiceError);
+        expect(err).toBeInstanceOf(NetworkError);
+        expect((err as NetworkError).code).toBe("network_error");
+      }
+    });
+
+    it("wraps an AbortError (timeout) as TimeoutError with code timeout", async () => {
+      const abort = new DOMException("The operation was aborted.", "AbortError");
+      mockFetch.mockRejectedValue(abort);
+      const client = createClient(mockFetch);
+
+      try {
+        await client.request("/test/");
+        expect.fail("Expected TimeoutError to be thrown");
+      } catch (err) {
+        expect(err).toBeInstanceOf(SEOJuiceError);
+        expect((err as TimeoutError).code).toBe("timeout");
+      }
+    });
+
+    it("does not re-wrap a typed HTTP error thrown by handleError", async () => {
+      mockFetch.mockResolvedValue(
+        createMockResponse({ ok: false, status: 401, body: { detail: "nope" } }),
+      );
+      const client = createClient(mockFetch);
+
+      await expect(client.request("/test/")).rejects.toThrow(AuthenticationError);
     });
   });
 });

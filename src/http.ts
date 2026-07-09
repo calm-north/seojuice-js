@@ -1,8 +1,11 @@
 import {
   APIError,
   AuthenticationError,
+  NetworkError,
   NotFoundError,
   RateLimitError,
+  SEOJuiceError,
+  TimeoutError,
 } from "./errors.js";
 
 export interface HttpClientConfig {
@@ -83,6 +86,20 @@ export class HttpClient {
       }
 
       return (await response.json()) as T;
+    } catch (err) {
+      // Typed HTTP errors from handleError are already in the hierarchy —
+      // let them through untouched.
+      if (err instanceof SEOJuiceError) throw err;
+      // The AbortController fired: distinguish a real timeout from a
+      // caller-supplied signal abort — both surface as TimeoutError since
+      // no response was received.
+      if (err instanceof Error && err.name === "AbortError") {
+        throw new TimeoutError(`Request to ${path} timed out after ${this.timeout}ms`);
+      }
+      // Any other rejection (DNS failure, ECONNREFUSED, "fetch failed") →
+      // NetworkError, preserving the original as `cause`.
+      const message = err instanceof Error ? err.message : String(err);
+      throw new NetworkError(`Network request to ${path} failed: ${message}`, err);
     } finally {
       clearTimeout(timer);
       options.signal?.removeEventListener("abort", onExternalAbort);
