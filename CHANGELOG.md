@@ -3,7 +3,7 @@
 ## 1.4.1
 
 ### Security
-- **JSON-LD is now escaped before `<script>` injection.** `replaceMetaTags` escapes every `<` in the serialized structured data as `<`, so a `</script>` in any API-supplied string value can no longer break out of the `application/ld+json` tag. This neutralizes a stored-XSS vector regardless of upstream trust; output stays valid JSON-LD (round-trips identically).
+- **JSON-LD is now escaped before `<script>` injection.** `replaceMetaTags` escapes every `<` in the serialized structured data as the JSON unicode escape `\u003c`, so a `</script>` in any API-supplied string value can no longer break out of the `application/ld+json` tag; the escape round-trips back to `<` when parsed as JSON, keeping the structured data valid. This neutralizes a stored-XSS vector regardless of upstream trust; output stays valid JSON-LD (round-trips identically).
 
 ### Fixed
 - **Transport and timeout failures now enter the typed error hierarchy.** A dead endpoint throws `NetworkError` (`code: "network_error"`) and a hung request throws `TimeoutError` (`code: "timeout"`), both `extends SEOJuiceError` with `status: 0` — the documented `code`/`status`/`requestId` contract now holds on network/timeout paths, not just HTTP error responses.

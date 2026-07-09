@@ -1284,7 +1284,7 @@ import { ChangeStatus, ChangeType, AutomationMode } from "seojuice";
 
 - **API keys** are sent via the `Authorization: Bearer` header over HTTPS only. Never expose keys in client-side code.
 - **HTML injection** uses attribute escaping (`&`, `"`, `'`, `<`, `>`) to prevent XSS when injecting meta tags and OG tags.
-- **Structured data** from the API is escaped before injection: every `<` in the serialized JSON-LD is replaced with `<` before it goes into the `<script type="application/ld+json">` tag, so a `</script>` in any value can't break out of the tag — safe even against a compromised upstream.
+- **Structured data** from the API is escaped before injection: it escapes every `<` in the serialized JSON-LD as the JSON unicode escape `\u003c` (so a `</script>` in any value cannot break out of the `<script type="application/ld+json">` tag; the escape round-trips back to `<`, keeping the JSON-LD valid).
 - **No `eval()` or `Function()`** — the SDK never evaluates dynamic code.
 - **No file system access** — the SDK works in sandboxed environments (Workers, edge runtimes).
 - **Timeouts** are enforced on all network requests to prevent hanging connections.
