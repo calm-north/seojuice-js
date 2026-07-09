@@ -7,6 +7,8 @@ export {
   NotFoundError,
   RateLimitError,
   APIError,
+  TimeoutError,
+  NetworkError,
 } from "./errors.js";
 export type { APIErrorCode } from "./errors.js";
 

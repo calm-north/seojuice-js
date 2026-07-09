@@ -188,3 +188,11 @@ describe("NetworkError", () => {
     expect(error.cause).toBe(original);
   });
 });
+
+describe("public error exports", () => {
+  it("re-exports TimeoutError and NetworkError from the package index", async () => {
+    const mod = await import("../src/index.js");
+    expect(mod.TimeoutError).toBe(TimeoutError);
+    expect(mod.NetworkError).toBe(NetworkError);
+  });
+});
