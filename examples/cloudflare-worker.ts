@@ -1,3 +1,4 @@
+// Illustrative integration — requires @cloudflare/workers-types: `npm i -D @cloudflare/workers-types`. Not type-checked in CI.
 /**
  * Cloudflare Worker — Edge SEO injection with KV caching.
  *

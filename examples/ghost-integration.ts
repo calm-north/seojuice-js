@@ -1,3 +1,4 @@
+// Illustrative integration — requires @tryghost/content-api: `npm i @tryghost/content-api`. Not type-checked in CI.
 /**
  * Ghost CMS — Server-side SEO injection for Ghost Content API.
  *

@@ -1,0 +1,47 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "lib": ["ES2020", "DOM"],
+    "types": ["node", "react"],
+    "paths": {
+      "seojuice": ["../src/index.ts"],
+      "seojuice/injection": ["../src/injection.ts"],
+      "seojuice/next": ["../src/next.ts"]
+    },
+    "baseUrl": "."
+  },
+  "include": [
+    "changes-astro.ts",
+    "changes-headless-cms.ts",
+    "changes-management.ts",
+    "changes-nextjs-ssg.tsx",
+    "changes-react-dashboard.tsx",
+    "changes-wordpress-headless.ts",
+    "intelligence-api.ts",
+    "nextjs-app-router.tsx",
+    "nextjs-middleware.ts"
+  ],
+  "exclude": [
+    "changes-contentful.ts",
+    "changes-gatsby.ts",
+    "changes-remix.ts",
+    "changes-sanity.ts",
+    "changes-webhook-receiver.ts",
+    "cloudflare-worker.ts",
+    "contentful-integration.ts",
+    "ghost-integration.ts",
+    "nuxt3-composable.ts",
+    "payload-cms-hook.ts",
+    "redis-cache.ts",
+    "storyblok-integration.ts",
+    "sveltekit-hooks.ts"
+  ]
+}

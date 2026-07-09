@@ -52,12 +52,14 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
+    "typecheck:examples": "tsc --noEmit -p examples/tsconfig.json",
     "test": "vitest run",
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run build"
   },
   "devDependencies": {
     "@types/node": "20.19.33",
+    "@types/react": "19.2.17",
     "next": "16.2.10",
     "tsup": "8.5.1",
     "typescript": "5.9.3",

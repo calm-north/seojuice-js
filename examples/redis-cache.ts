@@ -1,3 +1,4 @@
+// Illustrative integration — requires redis: `npm i redis`. Not type-checked in CI.
 /**
  * Redis caching layer for SEOJuice suggestions.
  *

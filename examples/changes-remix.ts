@@ -1,3 +1,4 @@
+// Illustrative integration — requires @remix-run/node: `npm i @remix-run/node`. Not type-checked in CI.
 /**
  * Remix — Loader, action, and meta for applying SEO changes.
  *
@@ -172,7 +173,7 @@ async function loader({ params }: { params: { slug: string } }) {
     post: enhanced,
     changes: [...changesResult.results, ...pendingResult.results],
     stats,
-    pendingCount: pendingResult.count,
+    pendingCount: pendingResult.pagination.total_count,
   };
 
   // Return with cache headers — revalidate via webhook

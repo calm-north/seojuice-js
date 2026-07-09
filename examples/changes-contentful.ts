@@ -1,3 +1,4 @@
+// Illustrative integration — requires contentful-management: `npm i contentful-management`. Not type-checked in CI.
 /**
  * Contentful Management API — Apply SEO changes to Contentful entries.
  *

@@ -1,3 +1,4 @@
+// Illustrative integration — requires @storyblok/react: `npm i @storyblok/react`. Not type-checked in CI.
 /**
  * Storyblok — Server-side internal link injection for richtext content.
  *
@@ -71,7 +72,7 @@ export async function getStoryWithSeo(slug: string, siteUrl: string) {
 
   // Render Storyblok richtext, then inject internal links
   const bodyHtml = renderRichText(story.content.body);
-  const enrichedHtml = injectLinksIntoHtml(bodyHtml, seo.suggestions);
+  const enrichedHtml = injectLinksIntoHtml(bodyHtml, seo.suggestions ?? []);
 
   return { story, enrichedHtml, seo };
 }

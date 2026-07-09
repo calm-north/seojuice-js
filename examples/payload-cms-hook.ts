@@ -1,3 +1,4 @@
+// Illustrative integration — requires payload: `npm i payload`. Not type-checked in CI.
 /**
  * Payload CMS — afterRead hook for automatic SEO enrichment.
  *

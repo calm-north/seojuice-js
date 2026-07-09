@@ -1,3 +1,4 @@
+// Illustrative integration — requires nuxt: `npm i nuxt`. Not type-checked in CI.
 /**
  * Nuxt 3 — Composable for server-side SEO data fetching.
  *

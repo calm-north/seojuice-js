@@ -77,6 +77,13 @@ interface EnrichedPost {
   appliedChangeIds: number[];
 }
 
+interface WpAllPostsResponse {
+  posts: {
+    pageInfo: { hasNextPage: boolean; endCursor: string };
+    nodes: WpPost[];
+  };
+}
+
 // --- WPGraphQL queries ---
 
 const POST_BY_SLUG_QUERY = `
@@ -250,12 +257,10 @@ export async function getAllPostsWithSeo(): Promise<EnrichedPost[]> {
   let hasMore = true;
 
   while (hasMore) {
-    const data = await wpGraphQL<{
-      posts: {
-        pageInfo: { hasNextPage: boolean; endCursor: string };
-        nodes: WpPost[];
-      };
-    }>(ALL_POSTS_QUERY, { first: 50, after });
+    const data: WpAllPostsResponse = await wpGraphQL<WpAllPostsResponse>(
+      ALL_POSTS_QUERY,
+      { first: 50, after },
+    );
 
     for (const post of data.posts.nodes) {
       const pageUrl = `https://${DOMAIN}${post.uri}`;

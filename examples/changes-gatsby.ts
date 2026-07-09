@@ -1,3 +1,4 @@
+// Illustrative integration — requires gatsby: `npm i gatsby`. Not type-checked in CI.
 /**
  * Gatsby Integration — Apply SEO changes during Gatsby builds.
  *

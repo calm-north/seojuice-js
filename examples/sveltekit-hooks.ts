@@ -1,3 +1,4 @@
+// Illustrative integration — requires @sveltejs/kit: `npm i @sveltejs/kit`. Not type-checked in CI.
 /**
  * SvelteKit — Server hooks for transparent HTML injection.
  *

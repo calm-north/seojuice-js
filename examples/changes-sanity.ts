@@ -1,3 +1,4 @@
+// Illustrative integration — requires @sanity/client: `npm i @sanity/client`. Not type-checked in CI.
 /**
  * Sanity CMS — Apply SEO changes via GROQ queries and patch transactions.
  *

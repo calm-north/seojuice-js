@@ -1,3 +1,4 @@
+// Illustrative integration — requires express: `npm i express`. Not type-checked in CI.
 /**
  * Express Webhook Receiver — Handle SEOJuice change lifecycle events.
  *

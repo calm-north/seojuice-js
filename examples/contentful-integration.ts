@@ -1,3 +1,4 @@
+// Illustrative integration — requires contentful: `npm i contentful @contentful/rich-text-html-renderer @contentful/rich-text-types`. Not type-checked in CI.
 /**
  * Contentful — Server-side SEO injection for rich text content.
  *
