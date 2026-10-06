@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.2
+
+### Fixed
+- **`sendViewBeacon` now reports crawler hits on URLs with a query string.** The beacon strips the query and fragment before sending the page URL, so SEOJuice matches the page. Before, a hit on `/p?ref=x` was dropped server-side.
+
 ## 1.4.1
 
 ### Security

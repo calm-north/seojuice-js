@@ -6,6 +6,25 @@ import { NextResponse } from "next/server.js";
 import { sendViewBeacon, createSeoMiddleware } from "../src/next.js";
 
 describe("sendViewBeacon", () => {
+  it.each([
+    ["https://x.com/p?utm_source=gemini&a=1#top", "https://x.com/p"],
+    ["https://x.com/p#top", "https://x.com/p"],
+    ["https://x.com/p?", "https://x.com/p"],
+    ["https://x.com/", "https://x.com/"],
+  ])("sends %s as a query- and fragment-free url", async (input, expected) => {
+    const f = vi.fn().mockResolvedValue({ ok: true });
+    await sendViewBeacon("https://smart.seojuice.io", input, "GPTBot", "", f);
+    expect(new URL(String(f.mock.calls[0][0])).searchParams.get("url")).toBe(expected);
+  });
+
+  it("swallows a malformed url without calling fetch or throwing", async () => {
+    const f = vi.fn().mockResolvedValue({ ok: true });
+    await expect(
+      sendViewBeacon("https://smart.seojuice.io", "not a url", "GPTBot", "", f),
+    ).resolves.toBeUndefined();
+    expect(f).not.toHaveBeenCalled();
+  });
+
   it("is fire-and-forget and swallows errors", async () => {
     const f = vi.fn().mockRejectedValue(new Error("x"));
     await expect(

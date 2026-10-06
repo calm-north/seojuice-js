@@ -34,7 +34,12 @@ export async function sendViewBeacon(
 ): Promise<void> {
   try {
     const u = new URL(`${apiBase}/views`);
-    u.searchParams.set("url", url);
+    // /views matches Pages.url exactly; a query string or fragment makes the
+    // server drop the hit.
+    const page = new URL(url);
+    page.search = "";
+    page.hash = "";
+    u.searchParams.set("url", page.toString());
     u.searchParams.set("user_agent", userAgent);
     u.searchParams.set("referrer", referrer);
     u.searchParams.set("source", "node_sdk");
