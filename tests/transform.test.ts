@@ -39,6 +39,17 @@ describe("helpers", () => {
   it("escapeHtml uses &#039; for apostrophe (Worker parity)", () => {
     expect(escapeHtml(`a'b<c>&"d`)).toBe("a&#039;b&lt;c&gt;&amp;&quot;d");
   });
+  it("normalizeImageUrl keys Next.js optimizer URLs on the original image", () => {
+    const k = normalizeImageUrl;
+    expect(k("https://x.com/_next/image?url=%2Fa.jpg&w=640&q=75")).toBe("//x.com/a.jpg");
+    expect(k("https://x.com/_next/image?url=%2Fa.jpg&w=1080")).toBe(k("https://x.com/_next/image?url=%2Fa.jpg&w=640"));
+    expect(k("https://x.com/_next/image?url=%2Fa.jpg")).not.toBe(k("https://x.com/_next/image?url=%2Fb.jpg"));
+    expect(k("//x.com/_next/image?url=https%3A%2F%2Fcdn.y.com%2Fa.jpg&w=640")).toBe("//cdn.y.com/a.jpg");
+    expect(k("https://x.com/_next/image?w=640")).toBe("//x.com/_next/image");
+    // nested optimizer URL: unwrap once, never recurse
+    expect(k("https://x.com/_next/image?url=%2F_next%2Fimage%3Furl%3D%252Fa.jpg%26w%3D640&w=640")).toBe("//x.com/_next/image");
+  });
+
   it("normalizeImageUrl strips scheme and query", () => {
     expect(normalizeImageUrl("https://x.com/a.png?w=1")).toBe("//x.com/a.png");
     expect(normalizeImageUrl("http://x.com/a.png")).toBe("//x.com/a.png");

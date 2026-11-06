@@ -22,9 +22,22 @@ export function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// Next.js optimizer: the image is the `url` param, not the endpoint.
+function unwrapNextImageUrl(url: string): string {
+  try {
+    const u = new URL(url, "http://sj.invalid");
+    if (u.pathname !== "/_next/image") return url;
+    const original = u.searchParams.get("url");
+    if (!original) return url;
+    return u.host === "sj.invalid" ? original : new URL(original, u.href).href;
+  } catch {
+    return url;
+  }
+}
+
 export function normalizeImageUrl(url: string): string {
   if (!url) return "";
-  url = url.split("?")[0];
+  url = unwrapNextImageUrl(url).split("?")[0];
   if (url.startsWith("https:")) return url.substring(6);
   if (url.startsWith("http:")) return url.substring(5);
   return url;
