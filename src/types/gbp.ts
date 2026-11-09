@@ -4,9 +4,9 @@ export interface GBPLocation {
   name: string;
   address: string;
   phone: string;
-  average_rating: number;
+  average_rating: number | null;
   total_reviews: number;
-  last_fetched_at: string;
+  last_fetched_at: string | null;
 }
 
 export interface GBPReview {
@@ -21,7 +21,7 @@ export interface GBPReview {
   sentiment: string;
   needs_attention: boolean;
   auto_replied: boolean;
-  published_at: string;
+  published_at: string | null;
   reply_posted_at: string | null;
 }
 

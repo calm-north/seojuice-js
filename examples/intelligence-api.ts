@@ -63,7 +63,7 @@ async function findDecayingContent(
     client.content.listDecayAlerts(domain, {
       ...params,
       is_active: true,
-      severity: "high",
+      severity: "critical",
     }),
   )) {
     alerts.push(alert);

@@ -2,10 +2,10 @@ export interface Competitor {
   id: number;
   domain: string;
   score: number;
-  intersections: number;
-  estimated_traffic: number;
+  intersections: number | null;
+  estimated_traffic: number | null;
   content_gaps_count: number;
-  avg_position: number;
+  avg_position: number | null;
   top_keywords: {
     keyword: string;
     your_position: number;

@@ -73,7 +73,7 @@ describe("replaceMetaTags / replaceH1", () => {
     const payload = S({ structured_data: JSON.stringify(JSON.stringify(inner)) });
     const out = replaceMetaTags("<head></head>", payload, M());
     expect(out).toContain(
-      '<script type="application/ld+json" data-seojuice="schema">{"@context":"https://schema.org","@type":"Article"}</script>',
+      '<script type="application/ld+json" data-seojuice="schema">[{"@context":"https://schema.org","@type":"Article"}]</script>',
     );
   });
   it("single-decodes structured_data into valid JSON-LD (M1 — real /suggestions payload shape)", () => {
@@ -83,7 +83,7 @@ describe("replaceMetaTags / replaceH1", () => {
     const payload = S({ structured_data: JSON.stringify(inner) });
     const out = replaceMetaTags("<head></head>", payload, M());
     expect(out).toContain(
-      '<script type="application/ld+json" data-seojuice="schema">{"@context":"https://schema.org","@type":"Article"}</script>',
+      '<script type="application/ld+json" data-seojuice="schema">[{"@context":"https://schema.org","@type":"Article"}]</script>',
     );
   });
   it("skips structured_data that is malformed even after a second parse attempt", () => {
@@ -114,7 +114,7 @@ describe("replaceMetaTags / replaceH1", () => {
     // No literal breakout survives inside the block.
     expect(block).not.toContain("</script>");
     // The escape round-trips: parsing the block yields the original object.
-    expect(JSON.parse(block)).toEqual(inner);
+    expect(JSON.parse(block)).toEqual([inner]);
   });
 });
 

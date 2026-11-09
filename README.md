@@ -158,7 +158,7 @@ const gaps = await client.content.listGaps("example.com", {
 
 const decaying = await client.content.listDecayAlerts("example.com", {
   is_active: true,
-  severity: "high",
+  severity: "critical",
 });
 
 const changes = await client.content.listChanges("example.com", {
@@ -172,7 +172,7 @@ const changes = await client.content.listChanges("example.com", {
 const request = await client.analysis.start("example.com", "https://example.com/page");
 const result = await client.analysis.waitForCompletion(
   "example.com",
-  request.id,
+  request.analysis_id,
   2000,   // poll interval (ms)
   60_000, // timeout (ms)
 );
@@ -183,7 +183,7 @@ const result = await client.analysis.waitForCompletion(
 ```typescript
 const reports = await client.reports.list("example.com");
 const report = await client.reports.get("example.com", reportId);
-const created = await client.reports.create("example.com", { type: "full" });
+const created = await client.reports.create("example.com", { type: "this_month" });
 const pdf = await client.reports.downloadPdf("example.com", reportId);
 ```
 
@@ -1218,10 +1218,10 @@ for await (const alert of autoPaginate((params) =>
   client.content.listDecayAlerts("example.com", {
     ...params,
     is_active: true,
-    severity: "high",
+    severity: "critical",
   }),
 )) {
-  console.log("Needs refresh:", alert.url, "Decline:", alert.decline_pct);
+  console.log("Needs refresh:", alert.page_url, "Change:", alert.clicks_change_pct);
 }
 
 // Build "Related Posts" sections
@@ -1286,7 +1286,7 @@ import type {
 } from "seojuice";
 
 // Enums for type-safe filtering
-import { ChangeStatus, ChangeType, AutomationMode } from "seojuice";
+import { ChangeStatus, ChangeStatusFilter, ChangeType, AutomationMode } from "seojuice";
 ```
 
 ## Security

@@ -53,6 +53,7 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
+    "typecheck:tests": "tsc --noEmit -p tests/tsconfig.json",
     "typecheck:examples": "tsc --noEmit -p examples/tsconfig.json",
     "test": "vitest run",
     "clean": "rm -rf dist",

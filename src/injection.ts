@@ -74,6 +74,8 @@ export async function fetchSuggestions(
 export interface InjectSEOOptions {
   html: string;
   suggestions: SuggestionResponse;
+  /** Page URL: base for resolving relative image URLs when the payload has no `base`. */
+  url?: string;
   injectLinks?: boolean;
   injectMetaTags?: boolean;
   injectOGTags?: boolean;
@@ -89,10 +91,10 @@ export interface InjectSEOOptions {
  * `transformHTML` pipeline: meta/OG/schema, images, internal links, content
  * diffs, h1, broken-link fixes, a manifest comment, and the SSR flag.
  *
- * C1 (`validateApiResponse`) gates the content-mutating transforms — an
- * invalid/actionless payload skips straight to the manifest comment (a
- * no-op when nothing changed) and the SSR flag, which are always applied,
- * matching the Worker's own unconditional behavior.
+ * A payload that is not an object, or whose `errors` array is non-empty,
+ * returns the original HTML untouched, like the Worker. C1 (`validateApiResponse`)
+ * gates the content-mutating transforms — an actionless payload skips straight
+ * to the manifest comment (a no-op when nothing changed) and the SSR flag.
  *
  * Fails open: any thrown error, an empty result, a result under half the
  * original length, or a result missing a `<body>` tag all return the
@@ -120,6 +122,10 @@ export function injectSEO(options: InjectSEOOptions | null | undefined): string 
   const manifest: Manifest = { cs: [], meta: [], img: 0, schema: 0, h1: 0 };
 
   try {
+    // The Worker serves the origin untouched when the API answered with errors
+    // (seojuice-ssr.js: `apiData.errors?.length > 0`), so no manifest comment and no SSR flag.
+    if (!s || typeof s !== "object" || Array.isArray(s)) return original;
+    if (Array.isArray(s.errors) && s.errors.length > 0) return original;
     if (validateApiResponse(s)) {
       if (t.injectMetaTags || t.injectOGTags || t.injectStructuredData) {
         out = replaceMetaTags(out, s, manifest, {
@@ -128,7 +134,7 @@ export function injectSEO(options: InjectSEOOptions | null | undefined): string 
           injectStructuredData: t.injectStructuredData,
         });
       }
-      if (t.injectImages) out = replaceImages(out, s, manifest);
+      if (t.injectImages) out = replaceImages(out, s, manifest, options.url);
       if (t.injectLinks) out = injectInternalLinks(out, s, manifest);
       if (t.injectDiffs) out = applyContentDiffs(out, s.diffs ?? [], manifest);
       if (t.injectH1) out = replaceH1(out, s, manifest);
@@ -177,7 +183,7 @@ export async function injectResponse(
       baseURL,
       timeout: opts.timeout,
     });
-    return injectSEO({ html: opts.html, suggestions });
+    return injectSEO({ html: opts.html, suggestions, url: opts.url });
   } catch {
     return safeHtml; // fail open — never re-read a possibly-null opts.html here
   }

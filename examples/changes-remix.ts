@@ -210,7 +210,9 @@ async function action({ request }: { request: Request }) {
         await client.changes.approve(DOMAIN, changeId);
         break;
       case "reject":
-        await client.changes.reject(DOMAIN, changeId, { reason });
+        await client.changes.reject(DOMAIN, changeId, {
+          reason: reason ?? "Rejected from admin bar",
+        });
         break;
       case "revert":
         await client.changes.revert(DOMAIN, changeId, { reason });
@@ -300,7 +302,7 @@ function meta({ data }: MetaArgs) {
 //         <div className="admin-bar">
 //           <span>{pendingCount} pending SEO changes for this page</span>
 //           {changes
-//             .filter((c) => c.status === "pending")
+//             .filter((c) => c.status === "proposed")
 //             .map((change) => (
 //               <Form method="post" key={change.id} className="inline-form">
 //                 <input type="hidden" name="_action" value="approve" />

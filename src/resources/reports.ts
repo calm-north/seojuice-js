@@ -3,6 +3,7 @@ import type { PaginatedResult, PaginationParams } from "../types/common.js";
 import type {
   ReportCreate,
   ReportDetail,
+  ReportType,
   ReportSummary,
 } from "../types/reports.js";
 import { validateDomain, validateId } from "../validate.js";
@@ -31,7 +32,7 @@ export class ReportsResource {
 
   async create(
     domain: string,
-    options: { type: string },
+    options: { type: ReportType },
   ): Promise<ReportCreate> {
     validateDomain(domain);
     return this.http.request<ReportCreate>(`/websites/${domain}/reports/`, {

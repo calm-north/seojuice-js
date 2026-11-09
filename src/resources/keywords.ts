@@ -5,6 +5,8 @@ import { validateDomain } from "../validate.js";
 
 export interface KeywordParams extends PaginationParams {
   category?: string;
+  /** Adds `serp_features` and `serp_enrichment` to every keyword. */
+  include_serp?: boolean;
 }
 
 export class KeywordsResource {

@@ -17,6 +17,10 @@ export interface WebsiteDetail {
   industry: string | null;
   scores: Record<string, number>;
   seo_score: number | null;
+  domain_health_score: number | null;
+  domain_health_breakdown: Record<string, unknown> | null;
+  avg_content_quality_score: number | null;
+  avg_geo_readiness_score: number | null;
   report: { created_at: string; data: Record<string, unknown> } | null;
   kpis: WebsiteKPIs;
 }

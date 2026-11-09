@@ -13,7 +13,8 @@ function createMockChange(overrides: Partial<ChangeRecord> = {}): ChangeRecord {
   return {
     id: 1,
     change_type: "internal_link",
-    status: "pending",
+    status: "proposed",
+    risk_level: null,
     page_url: "/blog/test-post",
     proposed_value: '<a href="/about">About Us</a>',
     previous_value: null,
@@ -35,6 +36,13 @@ function createMockChange(overrides: Partial<ChangeRecord> = {}): ChangeRecord {
     verified_at: null,
     reverted_at: null,
     revert_reason: null,
+    batch_id: null,
+    batch_label: null,
+    edited_manually: false,
+    mutation_type: "internal_link_insert",
+    verification_state: "none",
+    outcome_state: "none",
+    apply: null,
     ...overrides,
   };
 }
@@ -205,6 +213,7 @@ describe("ChangesResource", () => {
   describe("stats", () => {
     it("returns aggregated counts", async () => {
       const data: ChangeStats = {
+        total: 18,
         by_status: { pending: 5, approved: 10, applied: 3 },
         by_type: { internal_link: 8, meta_description: 10 },
       };
@@ -232,6 +241,7 @@ describe("ChangesResource", () => {
       meta_tags_mode: "auto_deploy",
       og_tags_mode: "off",
       title_tags_mode: "manual_deploy",
+      h1_tags_mode: "suggest",
       structured_data_mode: "suggest",
       image_alt_mode: "suggest",
       accessibility_mode: "off",
@@ -278,6 +288,7 @@ describe("ChangesResource", () => {
         meta_tags_mode: "auto_deploy",
         og_tags_mode: "off",
         title_tags_mode: "manual_deploy",
+      h1_tags_mode: "suggest",
         structured_data_mode: "suggest",
         image_alt_mode: "suggest",
         accessibility_mode: "off",
@@ -395,19 +406,10 @@ describe("ChangesResource", () => {
       expect(result).toEqual(rejected);
     });
 
-    it("sends POST without reason (undefined body)", async () => {
-      mockHttp.request.mockResolvedValue(createMockChange({ status: "rejected" }));
-
-      await changes.reject("example.com", 5);
-
-      expect(mockHttp.request).toHaveBeenCalledWith(
-        "/websites/example.com/changes/5/reject/",
-        { method: "POST", body: undefined },
-      );
-    });
-
     it("throws on invalid domain", async () => {
-      await expect(changes.reject("bad domain", 1)).rejects.toThrow(TypeError);
+      await expect(
+        changes.reject("bad domain", 1, { reason: "x" }),
+      ).rejects.toThrow(TypeError);
     });
   });
 
@@ -418,7 +420,7 @@ describe("ChangesResource", () => {
     it("sends POST with reason", async () => {
       const reverted = createMockChange({
         id: 7,
-        status: "reverted",
+        status: "rolled_back",
         reverted_at: "2026-03-10T14:00:00Z",
         revert_reason: "Caused layout issues",
       });
@@ -436,7 +438,7 @@ describe("ChangesResource", () => {
     });
 
     it("sends POST without reason", async () => {
-      mockHttp.request.mockResolvedValue(createMockChange({ status: "reverted" }));
+      mockHttp.request.mockResolvedValue(createMockChange({ status: "rolled_back" }));
 
       await changes.revert("example.com", 7);
 
@@ -460,7 +462,7 @@ describe("ChangesResource", () => {
     it("sends POST with integration name", async () => {
       const pulled = createMockChange({
         id: 15,
-        status: "pulled",
+        status: "live",
         pulled_at: "2026-03-10T15:00:00Z",
         pulled_by_integration: "api",
       });
@@ -480,7 +482,7 @@ describe("ChangesResource", () => {
     it("sends POST with wordpress integration", async () => {
       mockHttp.request.mockResolvedValue(
         createMockChange({
-          status: "pulled",
+          status: "live",
           pulled_by_integration: "wordpress",
         }),
       );
@@ -513,7 +515,7 @@ describe("ChangesResource", () => {
     it("sends POST with integration name", async () => {
       const verified = createMockChange({
         id: 15,
-        status: "verified",
+        status: "live",
         verified_at: "2026-03-10T16:00:00Z",
       });
       mockHttp.request.mockResolvedValue(verified);
@@ -727,7 +729,7 @@ describe("ChangesResource", () => {
   // ---------------------------------------------------------------------------
   describe("workflows", () => {
     it("full lifecycle: list -> approve -> pull -> verify", async () => {
-      const pending = createMockChange({ id: 1, status: "pending" });
+      const pending = createMockChange({ id: 1, status: "proposed" });
       const approved = createMockChange({
         id: 1,
         status: "approved",
@@ -735,13 +737,13 @@ describe("ChangesResource", () => {
       });
       const pulled = createMockChange({
         id: 1,
-        status: "pulled",
+        status: "live",
         pulled_at: "2026-03-10T14:00:00Z",
         pulled_by_integration: "wordpress",
       });
       const verified = createMockChange({
         id: 1,
-        status: "verified",
+        status: "live",
         verified_at: "2026-03-10T15:00:00Z",
       });
 
@@ -760,18 +762,18 @@ describe("ChangesResource", () => {
       const pulledResult = await changes.pull("example.com", 1, {
         integration: "wordpress",
       });
-      expect(pulledResult.status).toBe("pulled");
+      expect(pulledResult.status).toBe("live");
 
       const verifiedResult = await changes.verify("example.com", 1, {
         integration: "wordpress",
       });
-      expect(verifiedResult.status).toBe("verified");
+      expect(verifiedResult.status).toBe("live");
 
       expect(mockHttp.request).toHaveBeenCalledTimes(4);
     });
 
     it("full lifecycle: list -> reject", async () => {
-      const pending = createMockChange({ id: 2, status: "pending" });
+      const pending = createMockChange({ id: 2, status: "proposed" });
       const rejected = createMockChange({
         id: 2,
         status: "rejected",
@@ -796,7 +798,7 @@ describe("ChangesResource", () => {
       const approved = createMockChange({ id: 3, status: "approved" });
       const reverted = createMockChange({
         id: 3,
-        status: "reverted",
+        status: "rolled_back",
         reverted_at: "2026-03-10T14:00:00Z",
         revert_reason: "Caused issues",
       });
@@ -811,7 +813,7 @@ describe("ChangesResource", () => {
       const revertResult = await changes.revert("example.com", 3, {
         reason: "Caused issues",
       });
-      expect(revertResult.status).toBe("reverted");
+      expect(revertResult.status).toBe("rolled_back");
       expect(revertResult.revert_reason).toBe("Caused issues");
     });
 
@@ -821,6 +823,7 @@ describe("ChangesResource", () => {
         meta_tags_mode: "suggest",
         og_tags_mode: "off",
         title_tags_mode: "off",
+        h1_tags_mode: "off",
         structured_data_mode: "off",
         image_alt_mode: "off",
         accessibility_mode: "off",
@@ -1027,12 +1030,13 @@ describe("ChangesResource", () => {
 
     it("stats response includes all groupings", async () => {
       const data: ChangeStats = {
+        total: 23,
         by_status: {
           pending: 10,
           approved: 5,
           applied: 3,
-          pulled: 2,
-          verified: 1,
+          pulled: 0,
+          verified: 0,
           rejected: 4,
           reverted: 1,
           expired: 0,

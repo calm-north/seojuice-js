@@ -160,7 +160,7 @@ app.listen(PORT, () => {
 //   SEOJUICE_WEBHOOK_SECRET=whsec_xxx SEOJUICE_API_KEY=sk_xxx npx tsx examples/changes-webhook-receiver.ts
 //
 // Test with curl:
-//   BODY='{"event":"change.created","change":{"id":1,"change_type":"meta_description","page_url":"/blog/test","status":"pending"},"website":{"domain":"example.com"},"timestamp":"2026-03-10T00:00:00Z"}'
+//   BODY='{"event":"change.created","change":{"id":1,"change_type":"meta_description","page_url":"/blog/test","status":"proposed"},"website":{"domain":"example.com"},"timestamp":"2026-03-10T00:00:00Z"}'
 //   SIG=$(echo -n "$BODY" | openssl dgst -sha256 -hmac "your-secret" | awk '{print $2}')
 //   curl -X POST http://localhost:3000/webhooks/seojuice \
 //     -H "Content-Type: application/json" \

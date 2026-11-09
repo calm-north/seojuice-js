@@ -1,9 +1,11 @@
 export interface Link {
-  page_from: string;
-  page_to: string;
+  page_from: string | null;
+  page_to: string | null;
   keyword: string | null;
   created_at: string;
   impressions: number;
+  clicks: number;
+  ctr: number | null;
 }
 
 export interface ReadabilityScores {
@@ -19,6 +21,12 @@ export interface PageSummary {
   title: string | null;
   page_type: string | null;
   seo_score: number | null;
+  content_quality_score: number | null;
+  content_quality_breakdown: Record<string, unknown> | null;
+  geo_readiness_score: number | null;
+  geo_readiness_breakdown: Record<string, unknown> | null;
+  excluded: boolean;
+  is_key_page: boolean;
   accessibility_score: number | null;
   meta_description: string | null;
   language_code: string | null;
@@ -63,4 +71,6 @@ export interface MetricsHistory {
   cwv_fcp: number | null;
   cwv_ttfb: number | null;
   cwv_performance_score: number | null;
+  content_quality_score: number | null;
+  geo_readiness_score: number | null;
 }

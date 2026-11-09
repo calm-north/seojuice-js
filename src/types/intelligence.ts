@@ -16,6 +16,9 @@ export interface IntelligenceSummary {
   domain: string;
   seo_score: number;
   aiso_score: number;
+  domain_health_score: number | null;
+  avg_content_quality_score: number | null;
+  avg_geo_readiness_score: number | null;
   total_pages: number;
   total_clusters: number;
   total_internal_links: number;
@@ -44,6 +47,8 @@ export interface CoreWebVitals {
   inp: number | null;
   fcp: number | null;
   ttfb: number | null;
+  tbt: number | null;
+  speed_index: number | null;
 }
 
 export interface LighthouseScores {

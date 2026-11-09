@@ -1,10 +1,7 @@
 import type { HttpClient } from "../http.js";
 import type { PaginatedResult, PaginationParams } from "../types/common.js";
-import type {
-  ChangeRecord,
-  ContentDecayAlert,
-  ContentGap,
-} from "../types/content.js";
+import type { ChangeRecord } from "../types/changes.js";
+import type { ContentDecayAlert, ContentGap } from "../types/content.js";
 import { validateDomain } from "../validate.js";
 
 export interface ContentGapParams extends PaginationParams {
@@ -48,6 +45,7 @@ export class ContentResource {
     );
   }
 
+  /** @deprecated Same endpoint as `client.changes.list()`, which has the full filter set. */
   async listChanges(
     domain: string,
     params: ChangeParams = {},

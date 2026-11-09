@@ -206,8 +206,8 @@ function useChangeActions(
 
   const approve = (id: number) => callAction(id, "approve");
 
-  const reject = (id: number, reason?: string) =>
-    callAction(id, "reject", reason ? { reason } : undefined);
+  const reject = (id: number, reason = "Rejected from dashboard") =>
+    callAction(id, "reject", { reason });
 
   const revert = (id: number, reason?: string) =>
     callAction(id, "revert", reason ? { reason } : undefined);
@@ -369,7 +369,7 @@ function ChangeRow({
         {truncate(change.proposed_value, 60)}
       </td>
       <td className="change-actions">
-        {change.status === "pending" && (
+        {change.status === "proposed" && (
           <>
             <button
               type="button"
@@ -626,7 +626,7 @@ function ChangeDetailModal({
         </div>
 
         <div className="modal-footer">
-          {change.status === "pending" && (
+          {change.status === "proposed" && (
             <>
               <button
                 type="button"
@@ -646,7 +646,7 @@ function ChangeDetailModal({
               </button>
             </>
           )}
-          {(change.status === "applied" || change.status === "pulled") && (
+          {change.status === "live" && (
             <button
               type="button"
               onClick={() => setShowRevertForm(true)}
