@@ -46,19 +46,29 @@ export class ChangesResource {
     );
   }
 
-  async approve(domain: string, changeId: number): Promise<ChangeRecord> {
+  /**
+   * Approve a proposed change. Approving a page heading (h1) needs
+   * `confirm_heading: true` (`confirmHeading` is accepted as an alias);
+   * otherwise the server answers 400 `confirm_heading_required`.
+   */
+  async approve(
+    domain: string,
+    changeId: number,
+    params: { confirm_heading?: boolean; confirmHeading?: boolean } = {},
+  ): Promise<ChangeRecord> {
     validateDomain(domain);
     validateId(changeId, "changeId");
+    const confirm = params.confirm_heading ?? params.confirmHeading;
     return this.http.request<ChangeRecord>(
       `/websites/${domain}/changes/${changeId}/approve/`,
-      { method: "POST" },
+      confirm ? { method: "POST", body: { confirm_heading: true } } : { method: "POST" },
     );
   }
 
   async reject(
     domain: string,
     changeId: number,
-    params?: { reason?: string },
+    params: { reason: string },
   ): Promise<ChangeRecord> {
     validateDomain(domain);
     validateId(changeId, "changeId");

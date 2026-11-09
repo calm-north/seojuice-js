@@ -1,6 +1,8 @@
 import {
   APIError,
   AuthenticationError,
+  ForbiddenError,
+  PaymentRequiredError,
   NetworkError,
   NotFoundError,
   RateLimitError,
@@ -186,11 +188,29 @@ export class HttpClient {
             ? String(bodyObj.detail)
             : `Request failed with status ${response.status}`;
 
+    const errorCode = typeof bodyObj?.error === "string" ? bodyObj.error : null;
+    const fail = <E extends SEOJuiceError>(err: E): never => {
+      err.errorCode = errorCode;
+      throw err;
+    };
+
     switch (response.status) {
       case 401:
-        throw new AuthenticationError(message, requestId);
+        return fail(new AuthenticationError(message, requestId));
+      case 402:
+        return fail(
+          new PaymentRequiredError(
+            message,
+            body,
+            requestId,
+            typeof bodyObj?.checkout_url === "string" ? bodyObj.checkout_url : null,
+            typeof bodyObj?.lock_state === "string" ? bodyObj.lock_state : null,
+          ),
+        );
+      case 403:
+        return fail(new ForbiddenError(message, body, requestId));
       case 404:
-        throw new NotFoundError(message, path, requestId);
+        return fail(new NotFoundError(message, path, requestId));
       case 429: {
         const retryAfterRaw = response.headers.get("retry-after");
         let retryAfter: number | null = null;
@@ -198,10 +218,10 @@ export class HttpClient {
           const parsed = parseInt(retryAfterRaw, 10);
           retryAfter = Number.isFinite(parsed) ? parsed : null;
         }
-        throw new RateLimitError(message, retryAfter, requestId);
+        return fail(new RateLimitError(message, retryAfter, requestId));
       }
       default:
-        throw new APIError(message, response.status, body, requestId);
+        return fail(new APIError(message, response.status, body, requestId));
     }
   }
 }

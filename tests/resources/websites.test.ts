@@ -13,7 +13,7 @@ describe("WebsitesResource", () => {
 
   describe("list", () => {
     it("calls GET /websites/", async () => {
-      const data = [{ domain: "example.com" }];
+      const data = { results: [{ domain: "example.com", created_at: "2026-01-01T00:00:00Z" }] };
       mockHttp.request.mockResolvedValue(data);
 
       const result = await websites.list();

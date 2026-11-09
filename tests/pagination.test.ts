@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { PaginatedResponse, autoPaginate } from "../src/pagination.js";
+import { PaginatedResponse, autoPaginate, type PageFetcher } from "../src/pagination.js";
 import type { PaginatedResult } from "../src/types/common.js";
 
 function createPaginatedResult<T>(
@@ -69,7 +69,7 @@ describe("PaginatedResponse", () => {
 
 describe("autoPaginate", () => {
   it("yields all items across multiple pages", async () => {
-    const fetcher = vi.fn()
+    const fetcher = vi.fn<PageFetcher<number>>()
       .mockResolvedValueOnce(createPaginatedResult([1, 2, 3], 1, 3, 9, 3))
       .mockResolvedValueOnce(createPaginatedResult([4, 5, 6], 2, 3, 9, 3))
       .mockResolvedValueOnce(createPaginatedResult([7, 8, 9], 3, 3, 9, 3));
@@ -84,7 +84,7 @@ describe("autoPaginate", () => {
   });
 
   it("stops when total_pages is reached", async () => {
-    const fetcher = vi.fn()
+    const fetcher = vi.fn<PageFetcher<string>>()
       .mockResolvedValueOnce(createPaginatedResult(["a", "b"], 1, 2, 4, 2))
       .mockResolvedValueOnce(createPaginatedResult(["c", "d"], 2, 2, 4, 2));
 
@@ -98,7 +98,7 @@ describe("autoPaginate", () => {
   });
 
   it("works with single page result", async () => {
-    const fetcher = vi.fn().mockResolvedValueOnce(
+    const fetcher = vi.fn<PageFetcher<string>>().mockResolvedValueOnce(
       createPaginatedResult(["only"], 1, 1, 1, 10),
     );
 
@@ -112,7 +112,7 @@ describe("autoPaginate", () => {
   });
 
   it("passes page and page_size params to fetcher", async () => {
-    const fetcher = vi.fn().mockResolvedValue(
+    const fetcher = vi.fn<PageFetcher<string>>().mockResolvedValue(
       createPaginatedResult([], 1, 1, 0, 25),
     );
 
@@ -125,7 +125,7 @@ describe("autoPaginate", () => {
   });
 
   it("increments page number for each subsequent request", async () => {
-    const fetcher = vi.fn()
+    const fetcher = vi.fn<PageFetcher<string>>()
       .mockResolvedValueOnce(createPaginatedResult(["a"], 1, 3, 3, 1))
       .mockResolvedValueOnce(createPaginatedResult(["b"], 2, 3, 3, 1))
       .mockResolvedValueOnce(createPaginatedResult(["c"], 3, 3, 3, 1));
@@ -140,7 +140,7 @@ describe("autoPaginate", () => {
   });
 
   it("handles empty results", async () => {
-    const fetcher = vi.fn().mockResolvedValue(
+    const fetcher = vi.fn<PageFetcher<string>>().mockResolvedValue(
       createPaginatedResult([], 1, 1, 0, 10),
     );
 
@@ -154,7 +154,7 @@ describe("autoPaginate", () => {
   });
 
   it("starts from the specified page param", async () => {
-    const fetcher = vi.fn()
+    const fetcher = vi.fn<PageFetcher<string>>()
       .mockResolvedValueOnce(createPaginatedResult(["c"], 3, 3, 3, 1));
 
     const items: string[] = [];

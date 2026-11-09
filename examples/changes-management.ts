@@ -11,7 +11,7 @@ import type {
   ChangeStats,
   ChangeSettings,
 } from "seojuice";
-import { ChangeStatus } from "seojuice";
+import { ChangeStatusFilter } from "seojuice";
 
 const client = new SEOJuice({
   apiKey: process.env.SEOJUICE_API_KEY!,
@@ -28,8 +28,8 @@ async function printStats(): Promise<ChangeStats> {
   console.log("By status:", stats.by_status);
   console.log("By type:", stats.by_type);
 
-  const pending = stats.by_status[ChangeStatus.Pending] ?? 0;
-  const applied = stats.by_status[ChangeStatus.Applied] ?? 0;
+  const pending = stats.by_status[ChangeStatusFilter.Pending] ?? 0;
+  const applied = stats.by_status[ChangeStatusFilter.Applied] ?? 0;
   console.log(`\nPending review: ${pending}, Live on site: ${applied}`);
 
   return stats;
@@ -58,7 +58,7 @@ async function triagePendingChanges(): Promise<TriagedChanges> {
   for await (const change of autoPaginate((params) =>
     client.changes.list(DOMAIN, {
       ...params,
-      status: ChangeStatus.Pending,
+      status: ChangeStatusFilter.Pending,
     }),
   )) {
     if (AUTO_APPROVE_TYPES.has(change.change_type)) {
@@ -190,9 +190,9 @@ function printSettings(settings: ChangeSettings): void {
 async function monitorVelocity(): Promise<void> {
   const stats = await client.changes.stats(DOMAIN);
 
-  const pending = stats.by_status[ChangeStatus.Pending] ?? 0;
-  const applied = stats.by_status[ChangeStatus.Applied] ?? 0;
-  const rejected = stats.by_status[ChangeStatus.Rejected] ?? 0;
+  const pending = stats.by_status[ChangeStatusFilter.Pending] ?? 0;
+  const applied = stats.by_status[ChangeStatusFilter.Applied] ?? 0;
+  const rejected = stats.by_status[ChangeStatusFilter.Rejected] ?? 0;
 
   // Alert if pending changes are piling up
   if (pending > 100) {

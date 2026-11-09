@@ -43,6 +43,59 @@ export function normalizeImageUrl(url: string): string {
   return url;
 }
 
+const IMAGE_ATTRS = ["src", "data-src", "data-lazy-src", "data-lazy", "data-original"];
+const IMAGE_SRCSET_ATTRS = ["srcset", "data-srcset"];
+
+function readAttr(attributes: string, name: string): string | null {
+  const m = attributes.match(new RegExp("(?:^|\\s)" + name + "\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)')", "i"));
+  if (!m) return null;
+  return m[1] !== undefined ? m[1] : m[2];
+}
+
+function imageCandidates(attributes: string): string[] {
+  const out: string[] = [];
+  for (const name of IMAGE_ATTRS) {
+    const v = readAttr(attributes, name);
+    if (v) out.push(v);
+  }
+  for (const name of IMAGE_SRCSET_ATTRS) {
+    const v = readAttr(attributes, name);
+    if (v) {
+      for (const part of v.split(",")) {
+        const u = part.trim().split(/\s+/)[0];
+        if (u) out.push(u);
+      }
+    }
+  }
+  return out;
+}
+
+// Resolve against the payload base (page url) so the key equals the stored
+// urljoin(page.url, raw) form. Unresolvable relative URLs (no base) fall back
+// to the raw string so both sides still compare consistently. Mirrors the Worker.
+function matchKey(candidate: string, base: string | undefined, unwrapped = false): string | null {
+  if (!candidate) return null;
+  let resolved: URL;
+  try {
+    resolved = new URL(candidate, base || undefined);
+  } catch {
+    return /^(data|blob):/i.test(candidate) ? null : normalizeImageUrl(candidate);
+  }
+  if (resolved.protocol === "data:" || resolved.protocol === "blob:") return null;
+  // Next.js optimizer: the image is the `url` param, not the endpoint. Unwrap once.
+  if (!unwrapped && resolved.pathname === "/_next/image") {
+    const original = resolved.searchParams.get("url");
+    if (original) return matchKey(original, resolved.href, true);
+  }
+  let path = resolved.pathname;
+  try {
+    path = decodeURI(path);
+  } catch {
+    /* keep the raw path */
+  }
+  return normalizeImageUrl(resolved.protocol + "//" + resolved.host + path);
+}
+
 type Segment = { type: "text" | "tag"; value: string };
 
 export function tokenizeHTML(html: string): Segment[] {
@@ -66,6 +119,105 @@ export const CLOSE_TAG_RE = /^<\/(a|script|style|title|h[1-6])>/i;
 // block-content tags' direct text may receive injected links (never headings/nav/footer chrome).
 export const BLOCK_CONTENT_RE = /^<(p|li|span|div|td|blockquote|dd|figcaption)[\s>]/i;
 export const BLOCK_CONTENT_CLOSE_RE = /^<\/(p|li|span|div|td|blockquote|dd|figcaption)>/i;
+
+// B2 — gap-fill dedup: walks a parsed ld+json value (single node, array of
+// nodes, or a `@graph` wrapper — the shape Yoast and most CMS plugins emit)
+// and collects every `@type` it declares. `@type` may itself be a string or
+// an array of strings. Mirrors the Cloudflare Worker (seojuice-ssr.js).
+function collectLdJsonTypes(node: unknown, types: Set<string>): void {
+  if (Array.isArray(node)) {
+    for (const item of node) collectLdJsonTypes(item, types);
+    return;
+  }
+  if (!node || typeof node !== "object") return;
+  const rec = node as Record<string, unknown>;
+  if (Array.isArray(rec["@graph"])) {
+    for (const item of rec["@graph"]) collectLdJsonTypes(item, types);
+  }
+  const t = rec["@type"];
+  if (typeof t === "string") types.add(t);
+  else if (Array.isArray(t)) {
+    for (const tt of t) if (typeof tt === "string") types.add(tt);
+  }
+}
+
+function stripOwnLdJson(html: string): string {
+  return html.replace(
+    /<script([^>]*type=["']application\/ld\+json["'][^>]*)>[\s\S]*?<\/script>\n?/gi,
+    (block: string, attrs: string) => (/\sdata-seojuice(?=[\s=>\/]|$)/i.test(attrs) ? "" : block)
+  );
+}
+
+// Scans every existing ld+json script block in the page and returns the
+// union of `@type`s already present. A block that fails to parse is skipped
+// (never throws) — one bad existing script never blocks gap-fill.
+function collectPresentLdJsonTypes(html: string): Set<string> {
+  const types = new Set<string>();
+  const scriptRe = /<script([^>]*type=["']application\/ld\+json["'][^>]*)>([\s\S]*?)<\/script>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = scriptRe.exec(html)) !== null) {
+    // our own injected (tagged) schema is not the site's schema
+    if (/\sdata-seojuice(?=[\s=>\/]|$)/i.test(m[1])) continue;
+    try {
+      collectLdJsonTypes(JSON.parse(m[2]), types);
+    } catch {
+      /* skip unparsable existing ld+json block */
+    }
+  }
+  return types;
+}
+
+// A node is only "already present" if every one of its `@type`s (it may
+// declare more than one) is already on the page. A node with no `@type` at
+// all can't be deduped, so it's always treated as missing (fail open: keep it).
+const SCHEMA_COVERS: Record<string, string[]> = {
+  Article: [
+    "Article", "BlogPosting", "NewsArticle", "TechArticle", "ScholarlyArticle", "Report"
+  ],
+  WebPage: [
+    "WebPage", "CollectionPage", "AboutPage", "ContactPage", "ItemPage", "ProfilePage", "FAQPage", "QAPage",
+    "SearchResultsPage", "CheckoutPage", "MedicalWebPage", "RealEstateListing"
+  ],
+  Organization: [
+    "Organization", "Corporation", "NGO", "EducationalOrganization", "School", "CollegeOrUniversity",
+    "ElementarySchool", "HighSchool", "MiddleSchool", "Preschool", "GovernmentOrganization",
+    "NewsMediaOrganization", "MedicalOrganization", "ResearchOrganization", "SportsOrganization",
+    "SportsTeam", "PerformingGroup", "OnlineBusiness", "OnlineStore", "Airline", "Consortium",
+    "LibrarySystem", "WorkersUnion", "LocalBusiness", "AccountingService", "AutomotiveBusiness",
+    "AutoDealer", "AutoRepair", "Dentist", "EmergencyService", "EntertainmentBusiness", "FinancialService",
+    "FoodEstablishment", "Bakery", "BarOrPub", "CafeOrCoffeeShop", "Restaurant", "GovernmentOffice",
+    "HealthAndBeautyBusiness", "BeautySalon", "DaySpa", "HairSalon", "HomeAndConstructionBusiness",
+    "Electrician", "GeneralContractor", "Plumber", "InternetCafe", "LegalService", "Attorney", "Notary",
+    "LodgingBusiness", "Hotel", "Hostel", "Motel", "MedicalBusiness", "Pharmacy", "Physician",
+    "ProfessionalService", "RealEstateAgent", "RecyclingCenter", "SelfStorage", "ShoppingCenter",
+    "SportsActivityLocation", "Store", "TouristInformationCenter", "TravelAgency", "Person"
+  ],
+};
+// A proposed type is redundant when any covering type is already present.
+const isTypeCovered = (proposed: string, present: Set<string>): boolean => {
+  const covering = SCHEMA_COVERS[proposed] || [proposed];
+  return covering.some((t) => present.has(t));
+};
+
+function ldJsonNodeAlreadyPresent(node: unknown, present: Set<string>): boolean {
+  if (!node || typeof node !== "object" || Array.isArray(node)) return false;
+  const t = (node as Record<string, unknown>)["@type"];
+  if (typeof t === "string") return isTypeCovered(t, present);
+  if (Array.isArray(t) && t.length > 0) return t.every((tt) => typeof tt === "string" && isTypeCovered(tt, present));
+  return false;
+}
+
+// Normalizes OUR decoded structured_data payload into a flat node list: an
+// array is used as-is; a `{"@graph": [...]}` wrapper is unwrapped to its
+// inner nodes (matching the WordPress plugin's seojuice_normalize_schema_nodes);
+// anything else (a single node object) is wrapped in a one-element array.
+function normalizeSchemaNodes(obj: unknown): unknown[] {
+  if (Array.isArray(obj)) return obj;
+  if (obj && typeof obj === "object" && Array.isArray((obj as Record<string, unknown>)["@graph"])) {
+    return (obj as Record<string, unknown[]>)["@graph"];
+  }
+  return [obj];
+}
 
 export interface MetaTagFlags {
   injectMetaTags?: boolean;
@@ -136,20 +288,23 @@ export function replaceMetaTags(
     html = html.replace(/<\/head>/i, `<meta property="og:image" content="${escapeHtml(og_image)}">\n</head>`);
   }
 
-  // M1 — defensive single-or-double decode: the real /suggestions payload
-  // (build_page_suggestions_payload) serializes structured_data as a SINGLE
-  // json.dumps(dict) — a JSON string of the object. A legacy caller may
-  // still send it double-encoded (a JSON string containing an inner JSON
-  // string). Parse once; if the result is still a string, parse again.
-  // Either shape must produce byte-identical injected JSON-LD.
+  // Defensive single-or-double decode: the real /suggestions payload is a
+  // single json.dumps(); a legacy caller may send it double-encoded.
+  // Gap-fill like the Worker: normalise to nodes, drop our previous tagged
+  // block, inject only the @types the page lacks, as a bare array.
   if (injectStructuredData && structured_data && structured_data !== "null") {
     try {
       let obj: unknown = JSON.parse(structured_data);
       if (typeof obj === "string") obj = JSON.parse(obj);
-      if (!html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>/i)) {
+      const nodes = normalizeSchemaNodes(obj);
+      html = stripOwnLdJson(html);
+      const present = collectPresentLdJsonTypes(html);
+      const missing = nodes.filter((node) => !ldJsonNodeAlreadyPresent(node, present));
+      if (missing.length > 0) {
+        const schemaJson = JSON.stringify(missing).replace(/</g, "\\u003c");
         html = html.replace(
           /<\/head>/i,
-          `<script type="application/ld+json" data-seojuice="schema">${JSON.stringify(obj).replace(/</g, "\\u003c")}</script>\n</head>`,
+          `<script type="application/ld+json" data-seojuice="schema">${schemaJson}</script>\n</head>`,
         );
         manifest.schema = 1;
       }
@@ -174,32 +329,43 @@ export function replaceH1(html: string, s: SuggestionResponse, manifest: Manifes
   });
 }
 
-export function replaceImages(html: string, s: SuggestionResponse, manifest: Manifest): string {
+export function replaceImages(
+  html: string,
+  s: SuggestionResponse,
+  manifest: Manifest,
+  pageUrl?: string,
+): string {
   const images = s.images;
   if (!images || !Array.isArray(images)) return html;
+  const base = s.base || pageUrl || undefined;
 
   const imageMap = new Map<string, string>();
   for (const img of images) {
     if (img.url && img.alt_text) {
-      imageMap.set(normalizeImageUrl(img.url), img.alt_text);
+      const key = matchKey(img.url, base);
+      if (key !== null) imageMap.set(key, img.alt_text);
     }
   }
 
   if (imageMap.size === 0) return html;
 
   return html.replace(/<img([^>]+)>/gi, (match: string, attributes: string) => {
-    const srcMatch = attributes.match(/(?:src|data-src)=["']([^"']+)["']/);
-    if (!srcMatch) return match;
-
-    const normalizedSrc = normalizeImageUrl(srcMatch[1]);
-    if (!imageMap.has(normalizedSrc)) return match;
+    let matchedAlt: string | null = null;
+    for (const candidate of imageCandidates(attributes)) {
+      const key = matchKey(candidate, base);
+      if (key !== null && imageMap.has(key)) {
+        matchedAlt = imageMap.get(key) as string;
+        break;
+      }
+    }
+    if (matchedAlt === null) return match;
 
     const altMatch = match.match(/alt=["']([^"']*)["']/);
     const existingAlt = altMatch ? altMatch[1] : "";
 
     if (existingAlt && existingAlt.length >= 5) return match;
 
-    const altText = escapeHtml(imageMap.get(normalizedSrc) as string);
+    const altText = escapeHtml(matchedAlt);
     manifest.img += 1;
 
     if (altMatch) {
@@ -276,7 +442,7 @@ export function injectInternalLinks(html: string, s: SuggestionResponse, manifes
             if (replacedKeywords.has(link.kl)) return match;
             const classAttr = customLinkClass ? ` class="seojuice-link ${customLinkClass}"` : "";
             const csAttr = link.id != null ? ` data-seojuice-cs="${link.id}"` : "";
-            const replacement = `<a href="${escapeHtml(link.url)}"${classAttr}${csAttr}>${escapeHtml(link.keyword)}</a>`;
+            const replacement = `<a href="${escapeHtml(link.url)}"${classAttr}${csAttr}>${escapeHtml(match)}</a>`;
             replacedKeywords.add(link.kl);
             if (link.id != null) manifest.cs.push(link.id);
             return replacement;
@@ -514,6 +680,11 @@ export function validateApiResponse(s: unknown): boolean {
     (Array.isArray(obj.images) && obj.images.length) ||
     !!obj.structured_data ||
     !!obj.og_title ||
+    !!obj.og_description ||
+    !!obj.og_url ||
+    !!obj.og_image ||
+    !!obj.meta_keywords ||
+    !!obj.h1 ||
     (Array.isArray(obj.diffs) && obj.diffs.length) ||
     (Array.isArray(obj.broken_link_fixes) && obj.broken_link_fixes.length);
   if (!hasContent) return false;

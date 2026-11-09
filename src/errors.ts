@@ -10,6 +10,8 @@ export class SEOJuiceError extends Error {
   readonly code: APIErrorCode;
   readonly status: number;
   readonly requestId: string | null;
+  /** The server's `error` code from the response body (e.g. "invalid_token", "plan_limit"); set by the HTTP client. Null when the body had none. */
+  errorCode: string | null = null;
 
   constructor(
     message: string,
@@ -72,6 +74,32 @@ export class APIError extends SEOJuiceError {
     super(message, "api_error", status, requestId);
     this.name = "APIError";
     this.body = body;
+  }
+}
+
+export class ForbiddenError extends APIError {
+  constructor(message: string, body: unknown = null, requestId: string | null = null) {
+    super(message, 403, body, requestId);
+    this.name = "ForbiddenError";
+  }
+}
+
+/** 402: the organization is gated. Send the user to `checkoutUrl`. */
+export class PaymentRequiredError extends APIError {
+  readonly checkoutUrl: string | null;
+  readonly lockState: string | null;
+
+  constructor(
+    message: string,
+    body: unknown = null,
+    requestId: string | null = null,
+    checkoutUrl: string | null = null,
+    lockState: string | null = null,
+  ) {
+    super(message, 402, body, requestId);
+    this.name = "PaymentRequiredError";
+    this.checkoutUrl = checkoutUrl;
+    this.lockState = lockState;
   }
 }
 

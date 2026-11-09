@@ -1,3 +1,10 @@
+/** Report types the server accepts on create; anything else is a 400 `invalid_type`. */
+export type ReportType =
+  | "this_month"
+  | "last_month"
+  | "this_week"
+  | "last_week";
+
 export interface ReportSummary {
   id: number;
   type: string;
@@ -35,15 +42,18 @@ export interface AnalysisResult {
   analysis_id: string;
   status: string;
   url: string;
+  /** Cluster name. */
+  cluster: string | null;
   page_id: number | null;
-  cluster: { id: number; name: string } | null;
   seo_score: number | null;
   is_orphan: boolean | null;
   depth_from_homepage: number | null;
-  recommended_links: unknown[];
-  recommended_meta: Record<string, unknown> | null;
-  recommended_structured_data: Record<string, unknown> | null;
-  aiso_visibility: number | null;
+  /** Result keys are present only when `status` is `completed`; the server does not send these three today. */
+  recommended_links?: unknown[] | null;
+  recommended_meta?: Record<string, unknown> | null;
+  recommended_structured_data?: Record<string, unknown> | null;
+  aiso_visibility?: number | null;
   completed_at: string | null;
-  error_message: string | null;
+  /** Present only when `status` is `failed`. */
+  error_message?: string | null;
 }

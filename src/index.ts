@@ -7,6 +7,8 @@ export {
   NotFoundError,
   RateLimitError,
   APIError,
+  ForbiddenError,
+  PaymentRequiredError,
   TimeoutError,
   NetworkError,
 } from "./errors.js";
@@ -45,7 +47,12 @@ export type {
 } from "./types/intelligence.js";
 
 // Cluster types
-export type { ClusterSummary, ClusterDetail } from "./types/clusters.js";
+export type {
+  ClusterSummary,
+  ClusterDetail,
+  ClusterIssues,
+  InactiveClusterDetail,
+} from "./types/clusters.js";
 
 // Content types
 export type {
@@ -58,6 +65,7 @@ export type {
   ChangeRecord,
   ChangeListParams,
   ChangeStats,
+  ChangeLifecycleState,
   ChangeSettings,
   BulkActionParams,
   BulkActionResult,
@@ -66,6 +74,7 @@ export type {
 
 export {
   ChangeStatus,
+  ChangeStatusFilter,
   ChangeType,
   AutomationMode,
 } from "./types/changes.js";
@@ -79,7 +88,7 @@ export type { Competitor } from "./types/competitors.js";
 export type { AISO } from "./types/aiso.js";
 
 // Keyword types
-export type { Keyword, PageKeyword } from "./types/keywords.js";
+export type { Keyword, PageKeyword, SerpFeatures, SerpEnrichment } from "./types/keywords.js";
 
 // Backlink types
 export type { Backlink, BacklinkDomain } from "./types/backlinks.js";
@@ -92,6 +101,7 @@ export type {
   ReportSummary,
   ReportDetail,
   ReportCreate,
+  ReportType,
   AnalysisRequest,
   AnalysisResult,
 } from "./types/reports.js";

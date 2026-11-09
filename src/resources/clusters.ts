@@ -1,6 +1,10 @@
 import type { HttpClient } from "../http.js";
 import type { PaginatedResult, PaginationParams } from "../types/common.js";
-import type { ClusterDetail, ClusterSummary } from "../types/clusters.js";
+import type {
+  ClusterDetail,
+  ClusterSummary,
+  InactiveClusterDetail,
+} from "../types/clusters.js";
 import { validateDomain, validateId } from "../validate.js";
 
 export class ClustersResource {
@@ -17,10 +21,13 @@ export class ClustersResource {
     );
   }
 
-  async get(domain: string, clusterId: number): Promise<ClusterDetail> {
+  async get(
+    domain: string,
+    clusterId: number,
+  ): Promise<ClusterDetail | InactiveClusterDetail> {
     validateDomain(domain);
     validateId(clusterId, "clusterId");
-    return this.http.request<ClusterDetail>(
+    return this.http.request<ClusterDetail | InactiveClusterDetail>(
       `/websites/${domain}/clusters/${clusterId}/`,
     );
   }

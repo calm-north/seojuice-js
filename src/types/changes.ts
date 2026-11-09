@@ -1,6 +1,49 @@
 import type { PaginationParams } from "./common.js";
 
+/**
+ * `ChangeRecord.status` values: the server's change lifecycle state.
+ * The members marked deprecated are the legacy filter/stats vocabulary; the
+ * server never returns them in `status`. Use {@link ChangeStatusFilter} for
+ * `changes.list({ status })` and `stats.by_status` keys.
+ */
 export enum ChangeStatus {
+  Proposed = "proposed",
+  Approved = "approved",
+  Live = "live",
+  RolledBack = "rolled_back",
+  Rejected = "rejected",
+  Superseded = "superseded",
+  Stale = "stale",
+  Expired = "expired",
+  /** @deprecated Use `ChangeStatusFilter.Pending` (filter) or `ChangeStatus.Proposed` (record status). */
+  Pending = "pending",
+  /** @deprecated Use `ChangeStatusFilter.Applied` (filter) or `ChangeStatus.Live` (record status). */
+  Applied = "applied",
+  /** @deprecated The server reports pulled changes as `live`. */
+  Pulled = "pulled",
+  /** @deprecated The server reports verified changes as `live`. */
+  Verified = "verified",
+  /** @deprecated Use `ChangeStatus.RolledBack`. */
+  Reverted = "reverted",
+}
+
+/** Lifecycle states the server returns in `ChangeRecord.status`. */
+export type ChangeLifecycleState =
+  | "proposed"
+  | "approved"
+  | "live"
+  | "rolled_back"
+  | "rejected"
+  | "superseded"
+  | "stale"
+  | "expired";
+
+/**
+ * Values accepted by the `status` query filter of `changes.list`, and the
+ * keys of `ChangeStats.by_status`. `pulled` and `verified` filter to all
+ * `live` changes; as `by_status` keys they are always 0.
+ */
+export enum ChangeStatusFilter {
   Pending = "pending",
   Approved = "approved",
   Applied = "applied",
@@ -26,6 +69,7 @@ export enum ChangeType {
   LocalSchema = "local_schema",
   NapFix = "nap_fix",
   BrokenLinkFix = "broken_link_fix",
+  ContentPatch = "content_patch",
 }
 
 export enum AutomationMode {
@@ -38,7 +82,7 @@ export enum AutomationMode {
 export interface ChangeRecord {
   id: number;
   change_type: string;
-  status: string;
+  status: ChangeLifecycleState;
   risk_level: string | null;
   page_url: string | null;
   proposed_value: string | null;
@@ -64,16 +108,24 @@ export interface ChangeRecord {
   batch_id: string | null;
   batch_label: string | null;
   edited_manually: boolean;
+  mutation_type: string;
+  verification_state: string;
+  outcome_state: string;
+  /** Apply instructions; present only for approved or live changes. */
+  apply: Record<string, unknown> | null;
 }
 
 export interface ChangeListParams extends PaginationParams {
-  status?: string;
+  status?: ChangeStatusFilter | `${ChangeStatusFilter}`;
+  /** Only changes of this batch (UUID). */
+  batch_id?: string;
   change_type?: string;
   url?: string;
 }
 
 export interface ChangeStats {
   total: number;
+  /** Keys are {@link ChangeStatusFilter} values. `pulled` and `verified` are always 0; those changes count under `applied`. */
   by_status: Record<string, number>;
   by_type: Record<string, number>;
 }
@@ -96,7 +148,10 @@ export interface ChangeSettings {
 
 export interface BulkActionParams {
   action: "approve" | "reject" | "revert" | "pull" | "verify";
-  ids: number[];
+  /** Required unless `batch_id` is set. Max 500. */
+  ids?: number[];
+  /** Act on every change of this batch (UUID) instead of `ids`. */
+  batch_id?: string;
   reason?: string;
   integration?: string;
 }
